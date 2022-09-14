@@ -31,6 +31,9 @@ import tempfile
 from os import remove, getenv
 from datetime import datetime
 
+# for json output
+import json
+
 
 fdr_roles = {
     'echange' : {
@@ -101,7 +104,7 @@ def publish_role_package(FDR_ROLE, FDR_TARGET):
     title = (targets.get(FDR_TARGET) + ' - ' if targets.get(FDR_TARGET) else '') + fdr_role['title']
     #description = "MIS EN LIGNE AUTOMATIQUEMENT - jeux d'exemple des transformations SQL DBT du cas d'usage"
     description = "MIS EN LIGNE AUTOMATIQUEMENT - " + (targets.get(FDR_TARGET) + ' - ' if targets.get(FDR_TARGET) else '') + fdr_role['description']
-    private = False # TODO if test / exemples
+    private = False if FDR_ROLE == 'kpi' or FDR_TARGET == 'exemple' else True # DON'T open up source or echange
     extras = [
         { 'key' : 'FDR_CAS_USAGE', 'value' : FDR_CAS_USAGE },
         { 'key' : 'FDR_ROLE', 'value' : FDR_ROLE }, # 'test' 'source' 'echange' 'kpi' 'perimetre'
@@ -271,6 +274,7 @@ def publish_datastore_resource(pkg, resource_name, found_resource):
 
     records = model_df.to_dict(orient='records')
     print('publish records - first :', records[0] if len(records) != 0 else None)
+
     #print('publish dtypes', model_df.dtypes.to_dict())
     #mydtype = model_df.dtypes.to_dict()['apcomindoc_all_count']
     #print('publish mydtype', str(mydtype))
