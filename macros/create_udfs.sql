@@ -88,13 +88,22 @@ exception
   when others then return null;
 end;
 $$ language plpgsql;
+-- (with commented attempt to retrieve geo conversion error)
 create or replace function wkt_to_geometry_or_null (s text, srid integer)
+  --returns eaupotable.geometry_result
   returns public.geometry -- else error can't find type geometry
 as $$
+declare
+  l_context text;
 begin
+  --return (ST_GeomFROMText(s, srid), s, NULL)::geometry_result;
   return ST_GeomFROMText(s, srid);
 exception
-  when others then return null;
+  when others then
+    return null;
+    -- get error message, as in https://stackoverflow.com/questions/55684083/how-to-print-error-message-and-line-number-in-postgres-like-dbms-utility-format
+    --GET STACKED DIAGNOSTICS l_context = PG_EXCEPTION_CONTEXT;
+    --return (NULL, s, l_context)::geometry_result;
 end;
 $$ language plpgsql;
 
