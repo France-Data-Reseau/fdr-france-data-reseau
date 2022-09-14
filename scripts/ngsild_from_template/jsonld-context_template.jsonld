@@ -1,0 +1,7 @@
+{
+	"@context": {
+	{% for field_name in model_df.columns %}
+		"{{ field_name }}": "https://ontology.francedatareseau.fr/{{ FDR_CAS_USAGE }}/{{ type }}/{{ field_name }}"{% if not loop.last %},{% endif %}
+	{% endfor %}
+	}
+}

@@ -1,0 +1,14 @@
+version: 2
+
+models:
+  - name: georef-france-commune.jsonld
+    description: les communes du COG par ODS
+    config:
+      meta:
+        type: Commune
+        info: schema={{ target.schema }}
+        select:
+        fal:
+          scripts:
+            after:
+              - scripts/ngsild/to_ngsild.py

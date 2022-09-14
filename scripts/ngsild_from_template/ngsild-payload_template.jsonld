@@ -1,0 +1,28 @@
+{
+  "id": "urn:ngsi-ld:{{ FDR_CAS_USAGE }}:{{ type }}:osm_775666100_node/8736382817",
+    "type": [
+      "{{ type }}"
+    ],
+
+	{% if geo_field %}
+    "geometry": {
+        "type": "GeoProperty",
+        "value": {
+          "type": "Point",
+          "coordinates": [
+            0.363591,
+            47.4475859
+          ]
+        }
+      },
+	{% endif %}
+	{% for field_name in data.columns %}
+    "{{ field_name }}": {
+        "type": "Property",
+        "value": {% if string %}"{% endif %}{{ data[field_name].head(1) }}{% if string %}"{% endif %}
+      },
+	{% endfor %}
+  "@context": [
+    "http://localhost:8089/france-data-reseau/fdr-data-models/develop/apcom/jsonld-contexts/{{ type }}.jsonld"
+  ]
+}
