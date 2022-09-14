@@ -1,0 +1,9 @@
+
+target/
+dbt_packages/
+logs/
+**/.DS_Store
+ckan/
+import_state.json
+env.local
+env.prod

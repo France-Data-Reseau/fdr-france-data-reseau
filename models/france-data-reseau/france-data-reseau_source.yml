@@ -1,0 +1,12 @@
+version: 2
+
+sources:
+  - name: "france-data-reseau" # this is the source_name
+    description: les données mutualisées dans FDR
+    schema: "france-data-reseau" # _staging
+    #meta: {<dictionary>}
+    #tags: [<string>]
+    tables:
+      - name: "georef-france-region.csv"
+      - name: "georef-france-commune.csv"
+      - name: "INSEE communes données démographiques"

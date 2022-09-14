@@ -1,0 +1,13 @@
+version: 2
+
+sources:
+  - name: "fdr_import" # this is the source_name
+    description: les tables créées par le système d'import, pour avec fal les alimenter et publier les résultats et erreurs d'import
+    # use current schema ex. "france-data-reseau", "france-data-reseau_test" :
+    ## TODO schema: "{{ target.schema }}"
+    schema: "france-data-reseau"
+    #meta: {<dictionary>}
+    #tags: [<string>]
+    tables:
+      - name: "fdr_import_resource"
+      #- name: "fdrimpreserr_import/job_resource/data_error"

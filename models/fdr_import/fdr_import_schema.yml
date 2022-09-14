@@ -1,0 +1,34 @@
+version: 2
+
+# TODO TODO how to share schema constraint tests ? & refactor (one yml per source folder ?)
+
+# tests génériques de contrainte de schéma pour le modèle de données du cas d'usage "appuis communs"
+models:
+  - name: fdr_import_resource_view
+    description: uniquement pour publier les résultats et erreurs d'import
+    config:
+      tags: [ 'meta' ] # 'pii' TODO generate from source__type.sql (and rename it)
+      meta:
+        type: import_resource
+        formats: ['geojson']
+        info: schema={{ target.schema }}
+        select:
+        # custom FDR_ROLE is supported only for platform and should be a valid CKAN name (lower case, only '-')
+        FDR_ROLE: etat-import
+        publish_org: france-data-reseau
+        fal:
+          scripts:
+            before:
+              - scripts/import.py
+            after:
+              - scripts/publish.py
+
+# does not work :
+#fal:
+#  scripts:
+#    before:
+#      - scripts/import.py
+    #after:
+    #  - global/close_run.py
+
+#seeds:

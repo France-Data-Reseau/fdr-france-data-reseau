@@ -1,0 +1,77 @@
+
+name: 'fdr_francedatareseau'
+version: '0.1'
+profile: 'fdr_francedatareseau'
+config-version: 2
+#require-dbt-version: '0.21.0'
+
+vars:
+  #limit: 1000
+  FDR_CAS_USAGE: france-data-reseau # TODO ??
+  ns: 'fdr.francedatareseau.fr' # access with var('ns')
+  enableOverTime: false # sinon problèmes, voir dans les exploitation/*_ot.sql
+  enableProfiling: false
+  test_extract_suffixes:
+    #- _extract_stg
+    #- _extract
+    - _example_stg
+    - _example
+    #- _definition_stg
+    #- _definition
+  # TODO (level of) enablement of each source
+  # TODO or / and setup/conf() macros
+  # TODO move to global meta project :
+  schemas: [ 'france-data-reseau', 'appuiscommuns', 'sdirve', 'eaupotable', 'eclairage_public' ]
+  #base_schema: francedatareseau
+  use_case_prefix: fdr
+  owner_org: france-data-reseau
+  #create_views_per_data_owner_relations: []
+  # dbt_packages/fdr-... fails if soft link OR relative to parent ../ ; OR dans .yml # https://docs.fal.ai/Docs/fal-cli/local-imports
+  #fal-scripts-path: ../fdr_appuiscommuns/scripts
+
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+
+target-path: "target"
+clean-targets:
+    - "target"
+    - "dbt_packages"
+    - "logs"
+
+on-run-start:
+    #- '{{create_role_schema("appuiscommuns")}}' KO in THIS project, must exist for DBT to run...
+    # so rather in a meta project OR OPERATION AS ADMIN
+    #- '{{create_role_schema("appuiscommuns_test")}}'
+    ##- '{% if not target.name %}{{create_views()}}{% endif %}'
+    ##- '{{create_udfs()}}'
+    
+seeds:
+  fdr_francedatareseau:
+    #+quote_columns: true now true by default in 1.0
+    # seed-specific conf is now in its own source yml files
+
+#sources:
+#  appuiscommuns_osmgeodataminepowersupports:
+#    mysource:
+#      mytable:
+#        +enabled: false
+
+models:
+  # enable incremental schema update : TODO for now KO because doesn't quote field https://github.com/dbt-labs/dbt-core/issues/4423
+  #+on_schema_change: "sync_all_columns"
+  #fdr_osmgeodatamine_powersupports:
+  fdr_francedatareseau:
+    # TODO move to _unified /_joined / _computed/enriched ?
+    # sources :
+    materialized: view
+    #staging:
+    fdr:
+      materialized: table
+      # TODO separate _indicators/aggregates from _views etc.
+      exploitation:
+        #materialized: view NO rather table for performance
+    #meta:
+      #materialized: table not needed (?)
