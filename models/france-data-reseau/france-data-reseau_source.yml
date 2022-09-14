@@ -3,7 +3,7 @@ version: 2
 sources:
   - name: "france-data-reseau" # this is the source_name
     description: les données mutualisées dans FDR
-    schema: "france-data-reseau" # _staging
+    schema: "france-data-reseau" # "france-data-reseau_test"
     #meta: {<dictionary>}
     #tags: [<string>]
     tables:
