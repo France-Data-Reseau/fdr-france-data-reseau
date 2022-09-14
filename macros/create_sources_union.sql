@@ -2,6 +2,8 @@
 (rather than as dedicated dbt models ? alas in both cases source requires yaml def...)
 il manquait BEGIN; COMMIT; pour que create view dans macro marche !! https://docs.getdbt.com/reference/dbt-jinja-functions/run_query
 #}
+
+
 {% macro create_views_fdr_source_unions() %}
 {{ log("create_views_union start", info=True) }}
 {% set fdr_import_resource_model = source("fdr_import", "fdr_import_resource")  %}
@@ -27,7 +29,7 @@ il manquait BEGIN; COMMIT; pour que create view dans macro marche !! https://doc
 {{ log("create_views_union end") }}
 {% endmacro %}
 
-{% macro fdr_sources(FDR_SOURCE_NOM_criteria, fdr_import_resource_model=source("fdr_import", "fdr_import_resource")) %}
+{% macro fdr_sources(fdr_source_criteria, fdr_import_resource_model=source("fdr_import", "fdr_import_resource")) %}
 {% set sql %}
 select s."schema", s."FDR_SOURCE_NOM", data_owner_dict.has_dictionnaire_champs_valeurs,
 min(s.use_case_prefix) as use_case_prefix, ARRAY_AGG("table")as tables
@@ -39,8 +41,8 @@ group by sd.data_owner_id
 ) data_owner_dict on s.data_owner_id = data_owner_dict.data_owner_id
 --from {{ fdr_import_resource_model }} s -- from eaupot outputs : "datastore"."eaupotable"."eaupot_src_canalisations_en_service" s !?!
 where status = 'success' and "FDR_TARGET" <> 'archive' -- better than no errors or "FDR_SOURCE_NOM" is not null
-{% if FDR_SOURCE_NOM_criteria %}
-and {{ FDR_SOURCE_NOM_criteria }}
+{% if fdr_source_criteria %}
+and {{ fdr_source_criteria }}
 {% endif %}
 group by "schema", "FDR_SOURCE_NOM", data_owner_dict.has_dictionnaire_champs_valeurs;
 {% endset %}
@@ -54,21 +56,35 @@ group by "schema", "FDR_SOURCE_NOM", data_owner_dict.has_dictionnaire_champs_val
 params : see fdr_source_union
 TODO separate fdr_source_union_from_import_criteria ?
 #}
-{% macro fdr_source_union_from_name(FDR_SOURCE_NOM, has_dictionnaire_champs_valeurs, context_model, translated_macro=None, def_model=None, def_from_source_mapping = fdr_appuiscommuns.build_def_from_source_mapping_noprefix_lower(def_model)) %}
-{% set sql_criteria = '"FDR_SOURCE_NOM" = ' ~ "'" ~ FDR_SOURCE_NOM ~ "' and " ~ ('' if has_dictionnaire_champs_valeurs else 'not') ~ ' has_dictionnaire_champs_valeurs is true' %}
+{% macro fdr_source_union_from_name(FDR_SOURCE_NOM, has_dictionnaire_champs_valeurs, context_model, translated_macro=None, def_model=None, def_from_source_mapping = fdr_francedatareseau.build_def_from_source_mapping_noprefix_lower(def_model), FDR_CAS_USAGE=var('FDR_CAS_USAGE')) %}
+{% set sql_criteria %}
+"FDR_CAS_USAGE" = '{{ FDR_CAS_USAGE }}' and "FDR_SOURCE_NOM" = '{{ FDR_SOURCE_NOM }}'
+and {{ '' if has_dictionnaire_champs_valeurs else 'not' }} has_dictionnaire_champs_valeurs is true
+{% endset %}
 
 {% if execute %} {# else Compilation Error 'None' has no attribute 'table' https://docs.getdbt.com/reference/dbt-jinja-functions/execute #}
-{% set source_row = fdr_appuiscommuns.fdr_sources(sql_criteria).rows[0] %}
-{{ fdr_appuiscommuns.fdr_source_union_from_import_row(source_row, context_model, translated_macro, def_model, def_from_source_mapping) }}
+{% set source_rows = fdr_francedatareseau.fdr_sources(sql_criteria) %}
+{% if source_rows.rows | length == 0 %}
+  {# { exceptions.raise_compiler_error("fdr_source_union ERROR : no table to be unioned found, check parameters of fdr_source_union_from_name()") } #}
+  {% do log("fdr_source_union WARNING : no table to be unioned found, maybe check parameters of fdr_source_union_from_name()", info=True) %}
+  {% set source_row = None %}
+{% else %}
+    {% set source_row = source_rows.rows[0] %}
+{% endif %}
+
+{{ fdr_francedatareseau.fdr_source_union_from_import_row(source_row, context_model, translated_macro, def_model, def_from_source_mapping) }}
 {% endif %}
 {% endmacro %}
 
 {#
+- source_row : None is accepted, in order to still generate a table rather than explode
 - def_model : DEFINES EXACTLY the target column types
 - def_from_source_mapping : required for translated_macro case
 #}
-{% macro fdr_source_union_from_import_row(source_row, context_model, translated_macro=None, def_model=None, def_from_source_mapping = fdr_appuiscommuns.build_def_from_source_mapping_noprefix_lower(def_model)) %}
+{% macro fdr_source_union_from_import_row(source_row, context_model, translated_macro=None, def_model=None, def_from_source_mapping = fdr_francedatareseau.build_def_from_source_mapping_noprefix_lower(def_model)) %}
 {% if execute %} {# else Compilation Error 'None' has no attribute 'table' https://docs.getdbt.com/reference/dbt-jinja-functions/execute #}
+
+{% if source_row %}
 
 {% do log("fdr_source_union start " ~ source_row ~ source_row['schema'] ~ context_model.database, info=True) %}
 {% set tables = source_row['tables'][2:-2].split('", "') %}{# it's not an array but a string... #}
@@ -85,15 +101,15 @@ TODO separate fdr_source_union_from_import_criteria ?
 {% endfor %}
 {% do log("fdr_source_union source_models " ~ source_models, info=True) %}
 
+{% set sql2 %}
 {% if translated_macro %}
 
 {% do log("fdr_source_union def_from_source_mapping " ~ def_from_source_mapping, info=True) %}
-{% set sql2 %}
 {% for source_model in source_models %}
     (
     with lenient_parsed as (
-    {{ fdr_appuiscommuns.from_csv(source_model, column_models=[def_model], defined_columns_only=true, complete_columns_with_null=true,
-        wkt_rather_than_geojson=true, geometry_column='geometrie', def_from_source_mapping=def_from_source_mapping) }}
+    {{ fdr_francedatareseau.from_csv(source_model, column_models=[def_model], defined_columns_only=true, complete_columns_with_null=true,
+        wkt_rather_than_geojson=true, def_from_source_mapping=def_from_source_mapping) }}
     --limit 5 -- TODO better
     {# { translated_macro(source_model) } #}
     )
@@ -104,17 +120,22 @@ TODO separate fdr_source_union_from_import_criteria ?
     UNION
     {% endif %}
 {% endfor %}
-{% endset %}
 
 {% else %}
 
-{% set sql2 %}
 {{ dbt_utils.union_relations(relations=(source_models | reject("none") | list),
    source_column_name='import_table',
    column_override={"geometry": "geometry", "geom": "geometry"},)
 }}
+
+{% endif %}
 {% endset %}
 
+{% else %}
+{# no source_row, let's compensate by generating an empty table : #}
+{% set sql2 %}
+select '' as import_table, * from {{ def_model }}
+{% endset %}
 {% endif %}
 
 {% set sql1 %}
@@ -123,7 +144,9 @@ with unioned as (
 {{ sql2 }}
 ), enriched as (
 -- TODO move to macro used in specific .sql
-select u.*, s."data_owner_id", s."FDR_CAS_USAGE", s."FDR_ROLE", s."FDR_SOURCE_NOM", s."FDR_TARGET", s.org_name as data_owner_label -- TODO org_title
+select
+    u.*, s.last_changed, s."data_owner_id", s.org_name as data_owner_label, -- TODO org_title
+    s."FDR_CAS_USAGE", s."FDR_ROLE", s."FDR_SOURCE_NOM", s."FDR_TARGET"
 from unioned u left join "france-data-reseau".fdr_import_resource s
 on u.import_table = '"{{ target.database }}"."{{ source_row['schema'] }}"."' || s."table" || '"' -- "datastore"."eaupotable"."eaupot_raw_dictionnaire_champs_valeurs_93edagglo"
 where s.status = 'success'
