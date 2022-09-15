@@ -7,7 +7,7 @@ Projet des traitements globaux et des données mutualisées entre cas d'usage
 
 - scripts/ : import.py, publish.py (see there)
 - macros : union (of imported sources), conversion (from_csv, to_<type>.sql), compute generic fields, dedupe, UDFs, FDR schemas...
-- models : INSEE ODS commune & region, metamodel indicators
+- models : INSEE ODS commune & region, perimetre (mais sur FDR_SOURCE_NOM, TODO sur FDR_SOURCE rather than FDR_SOURCE_NOM), metamodel indicators
 
 ## Rules
 

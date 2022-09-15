@@ -26,9 +26,9 @@ select
     geo_shape_4326 as location,
 
     "year"::text as "year",
-    {#{{ fdr_appuiscommuns.to_date_or_null('year', source_relation, ['YYYY'], source_alias) }}::date as "year", -- 2021-10-01 Date de validité de l'indicateur #}
-    {{ fdr_appuiscommuns.to_boolean_or_null('com_in_ctu', source_relation, source_alias) }} as "com_in_ctu", -- true
-    {{ fdr_appuiscommuns.to_boolean_or_null('com_is_mountain_area', source_relation, source_alias) }} as "com_is_mountain_area", -- true
+    {#{{ fdr_francedatareseau.to_date_or_null('year', source_relation, ['YYYY'], source_alias) }}::date as "year", -- 2021-10-01 Date de validité de l'indicateur #}
+    {{ fdr_francedatareseau.to_boolean_or_null('com_in_ctu', source_relation, source_alias) }} as "com_in_ctu", -- true
+    {{ fdr_francedatareseau.to_boolean_or_null('com_is_mountain_area', source_relation, source_alias) }} as "com_is_mountain_area", -- true
 
     -- all other are string (codes should not be numbers) :
     {% for col_name in adapter.get_columns_in_relation(source_relation) | list | map(attribute='name') | reject("in", [
