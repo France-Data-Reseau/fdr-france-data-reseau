@@ -57,6 +57,7 @@ set -a ; source env.prod ; set +a
 dbt run --select meta --target prod_sync
 
 # import :
+set -a ; source env.prod ; set +a
 fal run --before
 # or
 fal run --target prod_sync --before
@@ -181,7 +182,7 @@ else:
     from faldbt_ext import write_table
     project_dir=".."
 
-from faldbt.lib import (_get_adapter) # _write_relation # _existing_or_new_connection, _connection_name, _create_engine_from_connection
+from faldbt.lib import (_get_adapter) # _execute_sql # _write_relation # _existing_or_new_connection, _connection_name, _create_engine_from_connection
 from fal import FalDbt
 profiles_dir = "~/.dbt"
 profile_target = "prod_sync"
@@ -404,7 +405,7 @@ def import_resource(resource, import_state):
         try:
             source_file_path = download_ckan_resource(resource)
         except Exception as e:
-            messages.append({ "status" : "error", "text" : "while downloading " + str(e) })
+            messages.append({ "status" : "error", "text" : "while downloading, " + str(e) })
             source_file_path = None
 
     else :
@@ -475,6 +476,8 @@ def import_resources(schema_suffix = ''):
     print('import_resources start')
     print('import_resources params:', fdrckan_url, ogr2ogr_command, host, port, database, user)
     print('import_resources conf:', fdr_cas_usages, all_formats, fdr_source_noms)
+    if not fdrckan_url or not ogr2ogr_command or not host or not port or not database or not user:
+        raise Exception("import_resources missing params, abort")
 
     import_state = {
         "schema_suffix" : schema_suffix, ##
