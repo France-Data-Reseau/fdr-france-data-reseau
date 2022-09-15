@@ -11,6 +11,8 @@ test()
 from uuid import uuid4
 import sqlalchemy
 from dbt.adapters.sql import SQLAdapter
+import six
+from faldbt.lib import (_execute_sql)
 
 def _connection_name(prefix: str, obj, _hash: bool = True):
     # HACK: we need to include uniqueness (UUID4) to avoid clashes
@@ -28,7 +30,7 @@ def _create_engine_from_connection(adapter: SQLAdapter):
     return sqlalchemy.create_engine(url_string, creator=lambda: connection.handle)
 
 '''
-if_exists : replace append
+if_exists : replace (first DROP CASCADE to avoid exploding on dependent objects), append, fail
 '''
 def write_table(data, table_name, schema, model_for_connection, adapter, if_exists="replace"):
     # _write_relation(adapter, data, relation, dtype=dtype)
@@ -36,7 +38,16 @@ def write_table(data, table_name, schema, model_for_connection, adapter, if_exis
     #with _existing_or_new_connection(
     #        adapter, _connection_name("write_target", relation, _hash=False), True
     #):
+    drop_cascade_stmt = f"drop table if exists \"{schema}\".\"{table_name}\" cascade"
+    # 202209 fal code :
+    #_execute_sql(
+    #    adapter,
+    #    six.text_type(drop_cascade_stmt).strip(),
+    #    new_conn=False
+    #)
     with adapter.connection_named(_connection_name("write_target", model_for_connection, _hash=False)):
+        adapter.execute(drop_cascade_stmt, auto_begin=True, fetch=True)
+
         engine = _create_engine_from_connection(adapter)
 
         rows_affected = data.to_sql(

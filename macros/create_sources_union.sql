@@ -77,9 +77,10 @@ and {{ '' if has_dictionnaire_champs_valeurs else 'not' }} has_dictionnaire_cham
 {% endmacro %}
 
 {#
-- source_row : None is accepted, in order to still generate a table rather than explode
-- def_model : DEFINES EXACTLY the target column types
+- source_row : None is accepted, if def_model is provided so as to be able to still generate a table rather than explode
+- def_model : DEFINES EXACTLY the target column types ; if None all found columns are unioned and must have the same type
 - def_from_source_mapping : required for translated_macro case
+- translated_macro : if provided, is applied after from_csv(), otherwise dbt_utils.union_relations() is applied
 #}
 {% macro fdr_source_union_from_import_row(source_row, context_model, translated_macro=None, def_model=None, def_from_source_mapping = fdr_francedatareseau.build_def_from_source_mapping_noprefix_lower(def_model)) %}
 {% if execute %} {# else Compilation Error 'None' has no attribute 'table' https://docs.getdbt.com/reference/dbt-jinja-functions/execute #}
@@ -105,10 +106,12 @@ and {{ '' if has_dictionnaire_champs_valeurs else 'not' }} has_dictionnaire_cham
 {% if translated_macro %}
 
 {% do log("fdr_source_union def_from_source_mapping " ~ def_from_source_mapping, info=True) %}
+{% set column_models = [def_model] if def_model else [] %}
+{% set defined_columns_only = not not def_model %}
 {% for source_model in source_models %}
     (
     with lenient_parsed as (
-    {{ fdr_francedatareseau.from_csv(source_model, column_models=[def_model], defined_columns_only=true, complete_columns_with_null=true,
+    {{ fdr_francedatareseau.from_csv(source_model, column_models=column_models, defined_columns_only=defined_columns_only, complete_columns_with_null=true,
         wkt_rather_than_geojson=true, def_from_source_mapping=def_from_source_mapping) }}
     --limit 5 -- TODO better
     {# { translated_macro(source_model) } #}
@@ -133,6 +136,7 @@ and {{ '' if has_dictionnaire_champs_valeurs else 'not' }} has_dictionnaire_cham
 
 {% else %}
 {# no source_row, let's compensate by generating an empty table : #}
+{# exceptions.raise_compiler_error("fdr_source_union ERROR : no table to be unioned found, and no def_model so can't generate empty table instead") #}
 {% set sql2 %}
 select '' as import_table, * from {{ def_model }}
 {% endset %}
@@ -168,9 +172,11 @@ select * from enriched
 #}
 {% macro build_def_from_source_mapping_noprefix_lower(def_column_model) %}
 {% set def_from_source_mapping = {} %}
-{% for col in adapter.get_columns_in_relation(def_column_model) | list %}
-  {% if def_from_source_mapping.update({ col.name : modules.re.sub('.*_', '', col.name.lower()) }) %}{% endif %}
-{% endfor %}
+{% if def_column_model %}
+    {% for col in adapter.get_columns_in_relation(def_column_model) | list %}
+      {% if def_from_source_mapping.update({ col.name : modules.re.sub('.*_', '', col.name.lower()) }) %}{% endif %}
+    {% endfor %}
+{% endif %}{# else return empty, so from_csv will use unmapped column name #}
 {{ return(def_from_source_mapping) }}
 {% endmacro %}
 

@@ -7,7 +7,7 @@ config-version: 2
 
 vars:
   #limit: 1000
-  FDR_CAS_USAGE: france-data-reseau # TODO ??
+  FDR_CAS_USAGE: fdr # TODO ??
   ns: 'fdr.francedatareseau.fr' # access with var('ns')
   enableOverTime: false # sinon problèmes, voir dans les exploitation/*_ot.sql
   enableProfiling: false
