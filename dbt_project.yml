@@ -42,11 +42,12 @@ clean-targets:
     - "logs"
 
 on-run-start:
-    #- '{{create_role_schema("appuiscommuns")}}' KO in THIS project, must exist for DBT to run...
+    #- '{{create_role_schema("france-data-reseau")}}' KO in THIS project, must exist for DBT to run...
     # so rather in a meta project OR OPERATION AS ADMIN
-    #- '{{create_role_schema("appuiscommuns_test")}}'
+    #- '{{create_role_schema("france-data-reseau_test")}}'
     ##- '{% if not target.name %}{{create_views()}}{% endif %}'
-    ##- '{{create_udfs()}}'
+    - '{{create_fdr_ckan_resource_synced()}}'
+    - '{{create_udfs()}}'
     
 seeds:
   fdr_francedatareseau:

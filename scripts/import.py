@@ -46,33 +46,35 @@ rajouter dans des jeux de données de cas d'usage
 
 cd fdr-france-data-reseau/
 
-# platform init (or update) - create use case roles and (shared, not personal) schemas with rights :
-# (first runs create_udfs because it requires it)
-dbt run-operation create_roles_schemas --target prod_sync
+# install :
+# - python : see README (python venv with dbt, fal, ckan, requests, for excel import openpyxl)
+# - datalake structure init (or update) - create use case roles and (shared, not personal) schemas with rights :
+# must be run as DB admin. NB. First runs create_udfs because it requires it.
+dbt run-operation create_roles_schemas --target prod_admin
+dbt run-operation create_fdr_ckan_resource_synced --target prod_admin
+# - manually create CKAN view scripts/fdr_ckan_resource.sql, and sync it to "france-data-reseau".fdr_ckan_resource_synced in DBT's DB
+# - IF NOT CREATED by previous create_roles_schemas DBT operation, create current (prod_admin) schema for fal import or on-run-start create_udfs (at least one model is required) :
+#dbt run --select meta --target prod_admin
+# - create what import.py depends on :
+dbt run --select fdr_import --target prod_admin
 
 # import CKAN resource files in DB and create meta / report table :
+# must be run as datalake admin (imports table in all use case schemas).
 # params have to be provided in environment variables (see env.template & README ; set -a propagates them to subshells / commands) :
 set -a ; source env.prod ; set +a
-# IF NOT CREATED by previous command, create current (prod_sync) schema for fal import or on-run-start create_udfs (at least one model is required) :
-dbt run --select meta --target prod_sync
-
-# import :
-set -a ; source env.prod ; set +a
-fal run --before
-# or
-fal run --target prod_sync --before
+fal run --target prod_admin --before
 # or (python launching faldbt)
 cd scripts
-python import.py
+python import.py prod_admin
 
-# publish :
+# OLD publish :
 dbt run --target prod --select fdr_import_resource_view
 fal run --select all --target prod
 
-#create views UNIONing imported tables of the same FDR_SOURCE_NOM :
+# create views UNIONing imported tables of the same FDR_SOURCE_NOM :
 NON dbt run-operation create_views_union --target prod_sync, plutôt DANS un projet cas d'usage, par exemple :
 cd fdr-eaupotable/
-dbt run --select eaupot_src_canalisations_en_service_parsed
+dbt run --target prod --select eaupot_src_canalisations_en_service_parsed
 
 or in test :
 set -a ; source env.test ; set +a
@@ -158,6 +160,7 @@ def get_from_ckan():
   print(found_packages)
 
 
+import sys
 import json
 import os, subprocess
 import requests
@@ -178,24 +181,25 @@ else: launched_by_fal = True
 if launched_by_fal:
     from scripts.faldbt_ext import write_table
     project_dir="."
+    profile_target = execute_sql("select '{{ target.name }}'").values[0][0]
 else:
     from faldbt_ext import write_table
     project_dir=".."
+    profile_target = sys.argv[1] if len(sys.argv) >= 2 else None # prod_sync prod_admin
 
 from faldbt.lib import (_get_adapter) # _execute_sql # _write_relation # _existing_or_new_connection, _connection_name, _create_engine_from_connection
 from fal import FalDbt
 profiles_dir = "~/.dbt"
-profile_target = "prod_sync"
 faldbt = FalDbt(profiles_dir=profiles_dir, project_dir=project_dir, profile_target=profile_target)
 config = faldbt._config
-print(faldbt._config.target_name)
-#profile_target = faldbt._config.target_name
+print("import - dbt config :", faldbt._config.target_name)
 
 model_for_connection = faldbt._source('fdr_import', 'fdr_import_resource')
 adapter = _get_adapter(project_dir, profiles_dir, profile_target, config=config)
 #write_table(test_relation, 'testwritedyn', schema, model_for_connection, adapter)
 
 if not launched_by_fal:
+    ref = faldbt.ref
     source = faldbt.source
     write_to_source = faldbt.write_to_source
 
@@ -343,9 +347,11 @@ def excel_to_dbt_table(source_file_path, schema, table):
         return str(e)
 
 format_to_import_fct = {
-    'gpkg' : ogr2ogr_geojson,
-    'geopackage' : ogr2ogr_geojson,
-    'geojson' : ogr2ogr_geojson,
+    'gpkg' : ogr2ogr,
+    'geopackage' : ogr2ogr,
+    'geojson' : ogr2ogr, # ogr2ogr_geojson
+    'shp' : ogr2ogr,
+    'shapefile' : ogr2ogr,
     'csv' : csv_to_dbt_table,
     'xls' : excel_to_dbt_table,
     'xlsx' : excel_to_dbt_table
@@ -486,7 +492,7 @@ def import_resources(schema_suffix = ''):
     }
     import_start = datetime.now().isoformat() # also id of import job
 
-    resource_df = source('fdr_ckan', 'fdr_resource')
+    resource_df = ref('fdr_ckan_resource')
     #print(resource_df)
     resources = resource_df.to_dict(orient='records')
     #print(resources)

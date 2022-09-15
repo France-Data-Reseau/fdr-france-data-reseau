@@ -45,6 +45,8 @@ pip install dbt-postgres
 pip install fal
 pip install ckanapi
 pip install requests
+# for Excel import (pandas.to_excel()) :
+pip install openpyxl
 
 # mise à jour :
 #pip install --upgrade dbt-postgres

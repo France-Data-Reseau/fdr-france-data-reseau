@@ -3,6 +3,6 @@ version: 2
 sources:
   - name: fdr_ckan
     description: source of relations mirroring CKAN info. Used by import system to know which resources to import.
-    schema: public
+    schema: "france-data-reseau"
     tables:
-      - name: fdr_resource
+      - name: fdr_ckan_resource_synced
