@@ -11,6 +11,14 @@ Projet des traitements globaux et des données mutualisées entre cas d'usage
 
 ## Rules
 
+### tables ou vues produites par DBT (dans le schema eaupotable) :
+
+- <FDR_USE_CASE>_raw_ : tables importées depuis les ressources CKAN par import.py
+- *_src_*_parsed (vue) : union générique des différentes tables importées de chaque collectivité, avec conversion automatique des champs
+- *_src_*_translated (table) : matérialise en table, unifie _en_service et _abandonnees, corrige (0-padding des codes) et enrichit (des champs techniques : id unique global reproductible...)
+- *_std_* (vue) : simple raccourci vers la précédente
+- => *_std_*_labelled (vue) : l'enrichit des labels des codes
+
 ### prefix
 
 version with and without type-specific prefix
