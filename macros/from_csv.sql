@@ -15,17 +15,21 @@ Polyline is here to/from DBT models (read/prepare seeds), so rather use geojson
 
 parameters :
 - source : a dbt model (from ref() or source()), by default the current one minus _stg if any (NOT a WITH-defined alias, because it is always used in another _csv.sql model)
-- column_models : used to guide parsing of values from text, and add missing columns as NULL if enabled (complete_columns_with_null)
-the first column with a given name DEFINES EXACTLY the type of this column, others are converted to it (so must be compatible obviously)
-So only the first column with a given name is kept?
+- column_models : (TODO rename def_column_models) used to guide parsing of values from text, and add missing columns as NULL if enabled (complete_columns_with_null)
+the first column with a given name DEFINES EXACTLY the type of this column, others are converted to it (so must be compatible obviously).
+(TODO Q So only the first column with a given name is kept?)
+if none, source is used as single column_models (same as defined_columns_only=false).
+- defined_columns_only : if true only produces def models columns, otherwise also all other source columns (which must
+not conflict)
 - complete_columns_with_null
 - wkt_rather_than_geojson
 - date_formats : in the order of parsing preference, by default : 'YYYY-MM-DDTHH24:mi:ss.SSS' (RFC3339), 'YYYY/MM/DD HH24:mi:ss.SSS', 'DD/MM/YYYY HH24:mi:ss.SSS'
 - geo_pattern
+- best_geometry_columns : allows to prioritize which column in source is better to be mapped to the single column
+typed as geometry in def models  (so also allows to rename / map it)
 - uuid_pattern
-- geometry_column : to rename it
-
-optional_column_model_TODO_or_types
+- def_from_source_mapping : allows ex. to add prefixes
+- debug
 
 NOT else error each UNION query must have the same number of columns :
         {% if debug %} -- TODO only if not ::text'd
@@ -36,7 +40,7 @@ NOT else error each UNION query must have the same number of columns :
 
 {% macro from_csv(source, column_models=[], defined_columns_only=false, complete_columns_with_null=false, wkt_rather_than_geojson=false,
     date_formats=['YYYY-MM-DDTHH24:mi:ss.SSS', 'YYYY/MM/DD HH24:mi:ss.SSS', 'DD/MM/YYYY HH24:mi:ss.SSS'],
-    geo_pattern="geo.*", best_geometry_columns=['geom', 'geometrie'], uuid_pattern="_Id|_Ref", geometry_column='geometrie', def_from_source_mapping={}, debug=true) %}
+    geo_pattern="geo.*", best_geometry_columns=['geom', 'geometrie'], uuid_pattern="_Id|_Ref", def_from_source_mapping={}, debug=true) %}
 
 {% set source = source if source else ref(model.name | replace('_stg', '')) %}
 
@@ -54,7 +58,7 @@ NOT else error each UNION query must have the same number of columns :
     {% endif %}
   {% endfor %}
 {% endfor %}
-{% if not defined_columns_only %}
+{% if not defined_columns_only or column_models | length == 0 %}
   {# add columns that are not in defs : #}
   {% for col in cols %}
     {% if col.name not in all_col_names %}
@@ -103,20 +107,22 @@ select
         {% if modules.re.match(geo_pattern, def_col.name, modules.re.IGNORECASE) and def_col.data_type == 'USER-DEFINED' %}
           {# this is the target geometry column. If best_geometry_col_name, use it as source. #}
           {{ fdr_francedatareseau.to_geometry_or_null(source_col.name if not best_geometry_col_name else best_geometry_col_name, source, wkt_rather_than_geojson=wkt_rather_than_geojson) }} as {{ adapter.quote(def_col.name) }}
-        {# TODO from json : according to param, example data, meta ? NOO TODO json_to_array
+        {# ARRAY : if also in source keep it so, else TODO from json : according to param, example data, meta ? NOO TODO json_to_array
         {% elif def_col.data_type == 'ARRAY' %}
           array_to_json({{ source }}.{{ adapter.quote(source_col.name) }}) as {{ adapter.quote(def_col.name) } #}
+        {% elif def_col.data_type == 'ARRAY' and source_col.data_type == 'ARRAY' %}
+          {{ source }}.{{ adapter.quote(source_col.name) }}
         {% elif modules.re.match(uuid_pattern, def_col.name) %}
           {{ source }}.{{ adapter.quote(source_col.name) }}::uuid
         {% elif def_col.is_number() %}
           {{ fdr_francedatareseau.to_numeric_or_null(source_col.name, source) }} as {{ adapter.quote(def_col.name) }}
-          -- {# {{ schema }}.fdr_francedatareseau.to_numeric_or_null({{ source }}.{{ adapter.quote(def_col.name) }}) as {{ adapter.quote(def_col.name) }} #} -- or merely ::numeric ?
+          -- {# "{{ schema }}".fdr_francedatareseau.to_numeric_or_null({{ source }}.{{ adapter.quote(def_col.name) }}) as {{ adapter.quote(def_col.name) }} #} -- or merely ::numeric ?
           --{{ source }}.{{ adapter.quote(def_col.name) }}::numeric -- NOT to_numeric_or_null else No function matches the given name and argument types.
         {% elif def_col.data_type == 'date' or def_col.data_type == 'timestamp' or def_col.data_type == 'timestamp with time zone' %}
-          {{ schema }}.to_date_or_null({{ source }}.{{ adapter.quote(source_col.name) }}::text, {% for fmt in date_formats %}'{{ fmt }}'::text{% if not loop.last %}, {% endif %}{% endfor %}) as {{ adapter.quote(def_col.name) }}
+          "{{ schema }}".to_date_or_null({{ source }}.{{ adapter.quote(source_col.name) }}::text, {% for fmt in date_formats %}'{{ fmt }}'::text{% if not loop.last %}, {% endif %}{% endfor %}) as {{ adapter.quote(def_col.name) }}
         {% elif def_col.data_type == 'boolean' %}
           {{ fdr_francedatareseau.to_boolean_or_null(source_col.name, source) }} as {{ adapter.quote(def_col.name) }}
-          --{{ schema }}.to_boolean_or_null({{ source }}.{{ adapter.quote(source_col.name) }}) as {{ adapter.quote(def_col.name) }} -- ? allows for 'oui'
+          --"{{ schema }}".to_boolean_or_null({{ source }}.{{ adapter.quote(source_col.name) }}) as {{ adapter.quote(def_col.name) }} -- ? allows for 'oui'
         {# % elif def_col.is_string() %}
           {{ source }}.{{ adapter.quote(source_col.name) }}::text as {{ adapter.quote(def_col.name) }} -- in case it's NOT text ex. int4 because of dbt seed !
         #}

@@ -45,7 +45,7 @@ def write_table(data, table_name, schema, model_for_connection, adapter, if_exis
     #    six.text_type(drop_cascade_stmt).strip(),
     #    new_conn=False
     #)
-    with adapter.connection_named(_connection_name("write_target", model_for_connection, _hash=False)):
+    with adapter.connection_named(_connection_name("write_table", model_for_connection, _hash=False)):
         adapter.execute(drop_cascade_stmt, auto_begin=True, fetch=True)
 
         engine = _create_engine_from_connection(adapter)

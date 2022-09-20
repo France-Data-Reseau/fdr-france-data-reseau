@@ -29,6 +29,7 @@ il manquait BEGIN; COMMIT; pour que create view dans macro marche !! https://doc
 {{ log("create_views_union end") }}
 {% endmacro %}
 
+
 {% macro fdr_sources(fdr_source_criteria, fdr_import_resource_model=source("fdr_import", "fdr_import_resource")) %}
 {% set sql %}
 select s."schema", s."FDR_SOURCE_NOM", data_owner_dict.has_dictionnaire_champs_valeurs,
@@ -52,6 +53,7 @@ group by "schema", "FDR_SOURCE_NOM", data_owner_dict.has_dictionnaire_champs_val
 {{ return(fdr_sources) }}
 {% endmacro %}
 
+
 {#
 params : see fdr_source_union
 TODO separate fdr_source_union_from_import_criteria ?
@@ -72,17 +74,19 @@ and {{ '' if has_dictionnaire_champs_valeurs else 'not' }} has_dictionnaire_cham
     {% set source_row = source_rows.rows[0] %}
 {% endif %}
 
-{{ fdr_francedatareseau.fdr_source_union_from_import_row(source_row, context_model, translated_macro, def_model, def_from_source_mapping) }}
+{{ fdr_francedatareseau.fdr_source_union_from_import_row(source_row, context_model, def_model, def_from_source_mapping) }}
 {% endif %}
 {% endmacro %}
 
+
 {#
 - source_row : None is accepted, if def_model is provided so as to be able to still generate a table rather than explode
+- context_model
 - def_model : DEFINES EXACTLY the target column types ; if None all found columns are unioned and must have the same type
 - def_from_source_mapping : required for translated_macro case
-- translated_macro : if provided, is applied after from_csv(), otherwise dbt_utils.union_relations() is applied
+NB. any specific translated_macro must rather be applied after calling this macro.
 #}
-{% macro fdr_source_union_from_import_row(source_row, context_model, translated_macro=None, def_model=None, def_from_source_mapping = fdr_francedatareseau.build_def_from_source_mapping_noprefix_lower(def_model)) %}
+{% macro fdr_source_union_from_import_row(source_row, context_model, def_model=None, def_from_source_mapping = fdr_francedatareseau.build_def_from_source_mapping_noprefix_lower(def_model)) %}
 {% if execute %} {# else Compilation Error 'None' has no attribute 'table' https://docs.getdbt.com/reference/dbt-jinja-functions/execute #}
 
 {% if source_row %}
@@ -92,10 +96,10 @@ and {{ '' if has_dictionnaire_champs_valeurs else 'not' }} has_dictionnaire_cham
 {% do log("fdr_source_union tables " ~ tables, info=True) %}
 {% set source_models = [def_model] if def_model else [] %}
 {% for table in tables %}
-    {% do log("fdr_source_union table " ~ table ~ adapter.get_relation(database = context_model.database, schema = source_row['schema'], identifier = table), info=True) %}
+    {% do log("fdr_source_union table " ~ table ~ " found : " ~ adapter.get_relation(database = context_model.database, schema = source_row['schema'], identifier = table), info=True) %}
     {% set source_model = adapter.get_relation(database = context_model.database, schema = source_row['schema'], identifier = table) %}
     {% if source_model %}
-    {% do source_models.append(source_model) %}
+        {% do source_models.append(source_model) %}
     {% else %}
     {% do log("fdr_source_union can't find relation ! " ~ schema ~ '.' ~ table) %}
     {% endif %}
@@ -103,18 +107,15 @@ and {{ '' if has_dictionnaire_champs_valeurs else 'not' }} has_dictionnaire_cham
 {% do log("fdr_source_union source_models " ~ source_models, info=True) %}
 
 {% set sql2 %}
-{% if translated_macro %}
 
 {% do log("fdr_source_union def_from_source_mapping " ~ def_from_source_mapping, info=True) %}
-{% set column_models = [def_model] if def_model else [] %}
 {% set defined_columns_only = not not def_model %}
 {% for source_model in source_models %}
     (
     with lenient_parsed as (
-    {{ fdr_francedatareseau.from_csv(source_model, column_models=column_models, defined_columns_only=defined_columns_only, complete_columns_with_null=true,
+    {{ fdr_francedatareseau.from_csv(source_model, column_models=[def_model] if def_model else [source_model], defined_columns_only=defined_columns_only, complete_columns_with_null=true,
         wkt_rather_than_geojson=true, def_from_source_mapping=def_from_source_mapping) }}
     --limit 5 -- TODO better
-    {# { translated_macro(source_model) } #}
     )
     -- select '"{{ context_model.database }}"."{{ schema }}"."{{ source_model }}"'::text as src_relation, lenient_parsed.* from lenient_parsed
     select '{{ source_model }}'::text as import_table, lenient_parsed.* from lenient_parsed
@@ -124,19 +125,14 @@ and {{ '' if has_dictionnaire_champs_valeurs else 'not' }} has_dictionnaire_cham
     {% endif %}
 {% endfor %}
 
-{% else %}
-
-{{ dbt_utils.union_relations(relations=(source_models | reject("none") | list),
-   source_column_name='import_table',
-   column_override={"geometry": "geometry", "geom": "geometry"},)
-}}
-
-{% endif %}
 {% endset %}
 
 {% else %}
 {# no source_row, let's compensate by generating an empty table : #}
-{# exceptions.raise_compiler_error("fdr_source_union ERROR : no table to be unioned found, and no def_model so can't generate empty table instead") #}
+{% do log("WARNING fdr_source_union_from_import_row  : no source row found matching given criteria (see SQL above).", info=True) %}
+{% if not def_model %}
+    {{ exceptions.raise_compiler_error("ERROR fdr_source_union_from_import_row : no table to be unioned found, and no def_model so can't generate empty table instead") }}
+{% endif %}
 {% set sql2 %}
 select '' as import_table, * from {{ def_model }}
 {% endset %}
@@ -168,7 +164,7 @@ select * from enriched
 
 
 {#
-'eaupot.*_'
+removes the front use case prefix (maps from 'eaupot.*_')
 #}
 {% macro build_def_from_source_mapping_noprefix_lower(def_column_model) %}
 {% set def_from_source_mapping = {} %}

@@ -18,9 +18,11 @@ vars:
     - _example
     #- _definition_stg
     #- _definition
+  schema_suffixes:
+    - ""
+    #- "_test"
   # TODO (level of) enablement of each source
   # TODO or / and setup/conf() macros
-  # TODO move to global meta project :
   schemas: [ 'france-data-reseau', 'appuiscommuns', 'sdirve', 'eaupotable', 'eclairage_public' ]
   #base_schema: francedatareseau
   use_case_prefix: fdr
@@ -46,7 +48,7 @@ on-run-start:
     # so rather in a meta project OR OPERATION AS ADMIN
     #- '{{create_role_schema("france-data-reseau_test")}}'
     ##- '{% if not target.name %}{{create_views()}}{% endif %}'
-    - '{{create_fdr_ckan_resource_synced()}}'
+    #- '{{create_fdr_ckan_resource_nifi()}}'
     - '{{create_udfs()}}'
     
 seeds:

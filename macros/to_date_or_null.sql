@@ -11,6 +11,6 @@ TODO : test 'timestamp'..., more than 1 format
 {% if not col or col.data_type == 'date' or col.data_type == 'timestamp' or col.data_type == 'timestamp with time zone' %}
   {{ source_alias if source_alias else source }}.{{ adapter.quote(column_name) }}
 {% else %}{# assuming text but maybe TODO convert ::text up to test ? #}
-  {{ schema }}.to_date_or_null({{ source_alias if source_alias else source }}.{{ adapter.quote(column_name) }}::text, '{{ fmts[0] }}'::text)
+  "{{ schema }}".to_date_or_null({{ source_alias if source_alias else source }}.{{ adapter.quote(column_name) }}::text, '{{ fmts[0] }}'::text)
 {% endif %}
 {% endmacro %}

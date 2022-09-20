@@ -13,15 +13,16 @@ geojson version could be kept to not to have to regenerate it for CSV output (TO
 
 {{
   config(
+    enabled=not target.name.endswith('_stellio'),
     materialized="table",
     indexes=[{'columns': ['geo_shape_4326'], 'type': 'gist'},]
   )
 }}
 
 select
-    {{ dbt_utils.star(source('france-data-reseau', 'georef-france-commune.csv'), except=[
+    {{ dbt_utils.star(source('france-data-reseau', 'georef-france-commune_old.csv'), except=[
       "geo_point_2d",
-      "geo_shape"]) }},
-    ST_PointFromText('POINT(' || replace(c.geo_point_2d, ',', ' ') || ')', 4326) as geo_point_4326,
-    ST_Transform(ST_GeomFromGeoJSON(c.geo_shape), 4326) as geo_shape_4326
-from {{ source('france-data-reseau', 'georef-france-commune.csv') }} c
+      "geo_shape"]) }}
+    --, ST_PointFromText('POINT(' || replace(c.geo_point_2d, ',', ' ') || ')', 4326) as geo_point_4326,
+    --ST_Transform(ST_GeomFromGeoJSON(c.geo_shape), 4326) as geo_shape_4326
+from {{ source('france-data-reseau', 'georef-france-commune_old.csv') }} c

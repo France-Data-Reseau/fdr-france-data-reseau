@@ -1,9 +1,9 @@
-{% macro create_fdr_ckan_resource_synced() %}
+{% macro create_fdr_ckan_resource_nifi() %}
 {% if execute %}
-{% do log("create_fdr_ckan_resource_synced", info=False) %}
+{% do log("create_fdr_ckan_resource_nifi", info=False) %}
 {% set sql %}
 BEGIN;
-CREATE TABLE if not exists "{{ target.schema }}".fdr_ckan_resource_synced (
+CREATE TABLE if not exists "{{ target.schema }}".fdr_ckan_resource_nifi (
 	id text NULL,
 	"name" text NULL,
 	last_modified timestamp NULL,
@@ -29,11 +29,16 @@ CREATE TABLE if not exists "{{ target.schema }}".fdr_ckan_resource_synced (
 	u_email text NULL,
 	u_name text NULL
 );
-CREATE UNIQUE INDEX if not exists fdr_ckan_resource_synced_idx on "{{ target.schema }}".fdr_ckan_resource_synced (id, dsid, orgid);
+CREATE UNIQUE INDEX if not exists fdr_ckan_resource_nifi_idx on "{{ target.schema }}".fdr_ckan_resource_nifi (id, dsid, orgid);
+CREATE OR REPLACE VIEW "{{ target.schema }}".fdr_ckan_resource as select
+    *,
+    dsid AS ds_id,
+    orgid AS org_id
+from "{{ target.schema }}".fdr_ckan_resource_nifi;
 COMMIT; -- else does not create ! https://docs.getdbt.com/reference/dbt-jinja-functions/run_query
 {% endset %}
-{% do log("create_fdr_ckan_resource_synced SQL " ~ sql, info=False) %}
+{% do log("create_fdr_ckan_resource_nifi SQL " ~ sql, info=False) %}
 {% do run_query(sql) %}
-{% do log("create_fdr_ckan_resource_synced source_row done", info=True) %}
+{% do log("create_fdr_ckan_resource_nifi source_row done", info=True) %}
 {% endif %}
 {% endmacro %}

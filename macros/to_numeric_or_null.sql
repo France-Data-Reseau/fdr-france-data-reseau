@@ -10,6 +10,6 @@ keeps as is if already is_number() in the source model, else applies CTE to_nume
 {% if not col or col.is_number() %}
   {{ source_alias if source_alias else source }}.{{ adapter.quote(column_name) }}
 {% else %}{# assuming text but maybe TODO convert ::text up to test ? #}
-  {{ schema }}.to_numeric_or_null({{ source_alias if source_alias else source }}.{{ adapter.quote(column_name) }})
+  "{{ schema }}".to_numeric_or_null({{ source_alias if source_alias else source }}.{{ adapter.quote(column_name) }})
 {% endif %}
 {% endmacro %}

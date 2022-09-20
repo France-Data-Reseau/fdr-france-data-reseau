@@ -12,10 +12,10 @@ only transforms SR if already is data_type geo* in the source model, else applie
 ST_Transform({{ source }}.{{ adapter.quote(col.name) }}, {{ srid }})
 {% elif not wkt_rather_than_geojson %}
 --ST_Transform(ST_GeomFromGeoJSON({{ source }}.{{ adapter.quote(col.name) }}), {{ srid }})
-{{ schema }}.geojson_to_geometry_or_null({{ source }}.{{ adapter.quote(col.name) }}, {{ srid }})
+"{{ schema }}".geojson_to_geometry_or_null({{ source }}.{{ adapter.quote(col.name) }}, {{ srid }})
 {% else %}
 --ST_GeomFROMText({{ source }}.{{ adapter.quote(col.name) }}, {{ srid }})
-{{ schema }}.wkt_to_geometry_or_null({{ source }}.{{ adapter.quote(col.name) }}, {{ srid }})
+"{{ schema }}".wkt_to_geometry_or_null({{ source }}.{{ adapter.quote(col.name) }}, {{ srid }})
 {% endif %}
 --NOO ST_PointFromText('POINT(' || replace(c.geo_point_2d, ',', ' ') || ')', 4326) as geo_point_4326,
 {% endmacro %}

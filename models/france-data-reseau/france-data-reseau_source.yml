@@ -7,6 +7,6 @@ sources:
     #meta: {<dictionary>}
     #tags: [<string>]
     tables:
-      - name: "georef-france-region.csv"
-      - name: "georef-france-commune.csv"
+      - name: "georef-france-region_old.csv"
+      - name: "georef-france-commune_old.csv"
       - name: "INSEE communes données démographiques"

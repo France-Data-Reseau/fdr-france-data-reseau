@@ -49,23 +49,38 @@ cd fdr-france-data-reseau/
 # install :
 # - python : see README (python venv with dbt, fal, ckan, requests, for excel import openpyxl)
 # - datalake structure init (or update) - create use case roles and (shared, not personal) schemas with rights :
-# must be run as DB admin. NB. First runs create_udfs because it requires it.
-dbt run-operation create_roles_schemas --target prod_admin
-dbt run-operation create_fdr_ckan_resource_synced --target prod_admin
-# - manually create CKAN view scripts/fdr_ckan_resource.sql, and sync it to "france-data-reseau".fdr_ckan_resource_synced in DBT's DB
-# - IF NOT CREATED by previous create_roles_schemas DBT operation, create current (prod_admin) schema for fal import or on-run-start create_udfs (at least one model is required) :
-#dbt run --select meta --target prod_admin
-# - create what import.py depends on :
-dbt run --select fdr_import --target prod_admin
+# must be run as DB admin (or a user having permission to create role and schema). NB. First runs create_udfs because it requires it.
+# NB. also adds required postgres extension uuid-ossp
+dbt run-operation create_roles_schemas --target prod_(pg)admin(_stellio)
+- create a DBT admin user and use it from now on, i.e. in DBT configure it in prod(_stellio) profile :
+set -a ; PASSWORD=`openssl rand -base64 ${1:-16}` ; dbt run-operation create_user --args '{name: "dbt_admin_user", schemas_string: "appuiscommuns,eaupotable,sdirve,eclairage_public,france-data-reseau"}' --target prod_(pg)admin(_stellio) ; set +a ; echo password : $PASSWORD
+#openssl rand -base64 ${1:-16}
+#CREATE USER "dbt_admin_user" IN GROUP "dbt_admin" PASSWORD 'Pp2UCofx6G/+fDGe9wX5Kg==' CREATEDB;
+
+# - CKAN resource data sync :  create view in ckan database (scripts/fdr_ckan_resource.sql),
+# then sync it to the "france-data-reseau".fdr_ckan_resource relation, either manually using ex. DBeaver-CE tasks
+# or automatically using ex. Nifi.
+# For Nifi and other solutions that require a table with PK index, here is a helper to create it :
+dbt run-operation create_fdr_ckan_resource_nifi --target prod_pgadmin_stellio
+# NB. import.py should not require anything else.
+# If current (prod_admin) schema was (required by on-run-start create_udfs and as said import.py.) was not created
+# by previous create_roles_schemas DBT operation, it could be created as follows, which would need DB admin rights
+# and at least one selected model :
+#dbt run --select meta --target prod_admin(_stellio)
+
+
+set -a ; PASSWORD="somepassword" ; dbt run-operation create_user --args '{name: "francois@datactivi.st", schemas_string: "appuiscommuns,france-data-reseau"}' --target prod_pgadmin_stellio ; set +a ; echo password : $PASSWORD
+set -a ; PASSWORD=`openssl rand -base64 ${1:-16}` ; dbt run-operation create_user --args '{name: "francois@datactivi.st", schemas_string: "appuiscommuns,france-data-reseau"}' --target prod_pgadmin_stellio ; set +a ; echo password : $PASSWORD
+
 
 # import CKAN resource files in DB and create meta / report table :
 # must be run as datalake admin (imports table in all use case schemas).
 # params have to be provided in environment variables (see env.template & README ; set -a propagates them to subshells / commands) :
-set -a ; source env.prod ; set +a
-fal run --target prod_admin --before
+set -a ; source env.prod(_stellio) ; set +a
+fal run --target prod_admin(_stellio) --before
 # or (python launching faldbt)
 cd scripts
-python import.py prod_admin
+python import.py prod_admin(_stellio)
 
 # OLD publish :
 dbt run --target prod --select fdr_import_resource_view
@@ -83,6 +98,7 @@ cd fdr-france-data-reseau/
 dbt run --select meta --target prod_sync
 fal run --target prod_sync_test --before
 cd fdr-eaupotable/
+dbt seed --target prod_stellio
 dbt run --target test --select eaupot_src_canalisations_en_service_parsed
 '''
 
@@ -192,7 +208,7 @@ from fal import FalDbt
 profiles_dir = "~/.dbt"
 faldbt = FalDbt(profiles_dir=profiles_dir, project_dir=project_dir, profile_target=profile_target)
 config = faldbt._config
-print("import - dbt config :", faldbt._config.target_name)
+print("import - dbt config :", config.target_name)
 
 model_for_connection = faldbt._source('fdr_import', 'fdr_import_resource')
 adapter = _get_adapter(project_dir, profiles_dir, profile_target, config=config)
@@ -224,7 +240,7 @@ def compute_has_changed(resource, step='default'):
     resource_key = build_resource_key(resource, step)
     has_stayed_same = resource_key in import_state and last_changed_string and import_state[resource_key] == last_changed_string
     if has_stayed_same:
-        print('import not changed, skip in step', step, resource, resource_key, import_state.get(resource_key), last_changed_string)
+        print('import not changed, skip in step', step, resource_key, import_state.get(resource_key), last_changed_string)
     else:
         print('import changed in step', step, resource, resource_key, import_state.get(resource_key), last_changed_string)
     return not has_stayed_same
@@ -238,7 +254,7 @@ def set_changed(resource, step='default'):
     print('import set_changed', resource_key, last_changed_string)
 
 def build_resource_key(resource, step='default'):
-    resource_key = '/'.join([resource['org_name'], resource['ds_name'], resource['name'], resource['id'], step])
+    resource_key = '/'.join([resource['org_name'], resource['ds_name'], resource['name'], resource['id'], step, config.target_name])
     return resource_key
 
 '''
@@ -269,7 +285,8 @@ def download_ckan_resource(resource):
 
     Path(source_file_path).parents[0].mkdir(parents=True, exist_ok=True)
     internal_url = '/'.join([fdrckan_url, 'dataset', resource['ds_id'], 'resource', resource['id'], 'download', resource['url']])
-    is_external_resource = pandas.isnull(resource['last_modified'])
+    is_external_resource = pandas.isnull(resource['size']) # and NOT last_modified because even if in CKAN it's null, it's then
+    # replaced by ds_metadata_modified otherwise Nifi QueryDatabaseTable can't detect it !
     url = resource['url'] if is_external_resource else internal_url
     print('import download_ckan_resource', url, source_file_path, resource, is_external_resource, import_state.get(url))
     headers = {
@@ -290,7 +307,8 @@ def ogr2ogr(source_file, schema, table):
     command = ogr2ogr_command.split(' ') + [
           #"--config", "PG_LIST_ALL_TABLES", "YES",
           "-f", "PostgreSQL",
-          "-overwrite", # else not append, and if nothing command blocks when already exists ?!
+          "-overwrite", # else not append, and if nothing command blocks when already exists ?! https://lists.osgeo.org/pipermail/gdal-dev/2021-July/054422.html
+          #"-append", "-doo", "\"PRELUDE_STATEMENTS=SET ROLE 'france-data-reseau'\"", # https://lists.osgeo.org/pipermail/gdal-dev/2021-July/054422.html
           "PG:host='" + host + "' port='" + port + "' user='" + user + "' password='" + password + "' dbname='" + database + "'",
            os.path.abspath(source_file), # else FAILURE: Unable to open datasource...
            "-nln", schema_and_table] # don't quote else they go in the name ! but ogr2ogr replaces ex. - by _...
@@ -378,7 +396,7 @@ def import_resource(resource, import_state):
         use_case_prefix = fdr_cas_usages[FDR_CAS_USAGE]['use_case_prefix']
 
     FDR_ROLE = resource['fdr_role'] if resource['fdr_role'] is not None and len(resource['fdr_role'].strip()) != 0 else 'source' # TODO 'FDR_ROLE'
-    print('import_resource', resource['name'], FDR_ROLE)
+    #print('import_resource', resource['name'], FDR_ROLE)
     if FDR_ROLE not in ['source', 'perimetre']:
         return
 
@@ -387,7 +405,7 @@ def import_resource(resource, import_state):
     data_owner_id = re.sub('[^a-zA-Z0-9_]', '', data_owner_id_tmp.lower())
     # format : (CKAN format is always lower case)
     format = (resource['format'] if resource['format'] is not None else os.path.splitext(resource['name'])).lower()
-    print('import_resource', resource['name'], data_owner_id, format)
+    #print('import_resource', resource['name'], data_owner_id, format)
 
     if resource['fdr_source_nom'] is not None and len(resource['fdr_source_nom'].strip()) != 0: # TODO FDR_SOURCE_NOM
         FDR_SOURCE_NOM = resource['fdr_source_nom']
@@ -426,7 +444,7 @@ def import_resource(resource, import_state):
 
         #table = '_'.join([use_case_prefix, 'raw', FDR_SOURCE_NOM, data_owner_id, step])
         table = '_'.join([use_case_prefix, 'raw', FDR_SOURCE_NOM, data_owner_id])
-        print('import_resource', resource['name'], FDR_SOURCE_NOM, data_owner_id, format, schema, table, source_file_path)
+        print('import_resource', FDR_SOURCE_NOM, data_owner_id, format, resource['name'], schema, table, source_file_path)
 
         schema_and_table = schema + '.' + table
         if schema_and_table in import_state['schema_and_tables']:
@@ -440,7 +458,7 @@ def import_resource(resource, import_state):
 
             if import_fct:
                 # TODO in org schema ! and afterwards create view with schema, use_case_prefix
-                print('supported format', format, resource['name'])
+                #print('supported format', format, resource['name'])
                 res = import_fct(source_file_path, schema, table)
                 step = import_fct.__name__
 
@@ -492,7 +510,7 @@ def import_resources(schema_suffix = ''):
     }
     import_start = datetime.now().isoformat() # also id of import job
 
-    resource_df = ref('fdr_ckan_resource')
+    resource_df = source('fdr_ckan', 'fdr_ckan_resource')
     #print(resource_df)
     resources = resource_df.to_dict(orient='records')
     #print(resources)

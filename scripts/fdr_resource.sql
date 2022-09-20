@@ -1,7 +1,9 @@
 
 -- view over CKAN data required by import.py :
 -- (to be synchronized to DBT datastore ex. using Nifi or DBeaver-CE)
--- NB. orgid and dsid without _ else nifi KO (PK for ON CONFLICT)
+-- Nifi gotchas :
+-- - orgid and dsid without _ else when used in Nifi PutDatabaseRecord's Update Keys (incremental), error (PK for ON CONFLICT)
+-- - last_modified must never be null (so ds_metadata_modified used instead) else won't be detected when used in QueryDatabaseTable Maximum-value Columns
 create or replace view fdr_resource as (
 with dsex as (
 select
@@ -21,7 +23,9 @@ from group_extra orgex
 group by orgex.group_id
 )
 select
-r.id, r.name, r.last_modified, r.size, r.format, r.extras, r.url,
+r.id, r.name,
+(CASE WHEN r.last_modified IS NULL then ds.metadata_modified else r.last_modified end) as last_modified,
+r.size, r.format, r.extras, r.url,
 ds.id as dsid, ds.name as ds_name, ds.title as ds_title, ds.metadata_modified  as ds_metadata_modified,
 dsex.*,
 org.id as orgid, org.name as org_name, org.title as org_title, -- label
