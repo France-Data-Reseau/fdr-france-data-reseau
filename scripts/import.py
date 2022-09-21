@@ -107,6 +107,7 @@ dbt run --target test --select eaupot_src_canalisations_en_service_parsed
 import os
 from ckanapi import RemoteCKAN, NotAuthorized
 
+# CKAN configuration (to download files) :
 ua = 'ckanapifdr/1.0 (+https://ckan.francedatareseau.fr)'
 fdrckan_url = os.getenv("FDR_SYNC_CKAN_URL")
 #fdrckan_url = 'https://ckan.francedatareseau.fr'

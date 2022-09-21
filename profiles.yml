@@ -17,7 +17,7 @@ fdr_appuiscommuns:
       password: "{{ env_var('FDR_SYNC_POSTGRES_PASSWORD') }}"
       port: "{{ env_var('FDR_SYNC_POSTGRES_PORT') | as_number }}"
       dbname: "{{ env_var('FDR_SYNC_POSTGRES_DATABASE') }}"
-      schema: "france-data-reseau"
+      schema: appuiscommuns
       threads: 4
 fdr_eaupotable:
   target: test
@@ -38,7 +38,7 @@ fdr_eaupotable:
       password: "{{ env_var('FDR_SYNC_POSTGRES_PASSWORD') }}"
       port: "{{ env_var('FDR_SYNC_POSTGRES_PORT') | as_number }}"
       dbname: "{{ env_var('FDR_SYNC_POSTGRES_DATABASE') }}"
-      schema: "france-data-reseau"
+      schema: eaupotable
       threads: 4
 fdr_bornesderecharge:
   target: prod
@@ -59,7 +59,7 @@ fdr_bornesderecharge:
       password: "{{ env_var('FDR_SYNC_POSTGRES_PASSWORD') }}"
       port: "{{ env_var('FDR_SYNC_POSTGRES_PORT') | as_number }}"
       dbname: "{{ env_var('FDR_SYNC_POSTGRES_DATABASE') }}"
-      schema: "france-data-reseau"
+      schema: sdirve
       threads: 4
 fdr_francedatareseau:
   target: prod
