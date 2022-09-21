@@ -6,8 +6,15 @@ Projet des traitements globaux et des données mutualisées entre cas d'usage
 ## Provides
 
 - scripts/ : import.py, publish.py (see there)
-- macros : union (of imported sources), conversion (from_csv, to_<type>.sql), compute generic fields, dedupe, UDFs, FDR schemas...
-- models : INSEE ODS commune & region, perimetre (mais sur FDR_SOURCE_NOM, TODO sur FDR_SOURCE rather than FDR_SOURCE_NOM), metamodel indicators
+- macros :
+    - setup (create_role_schemas, create_user),
+    - union (of imported sources), conversion (from_csv, to_<type>.sql) and its UDFs, compute generic fields,
+    - and dedupe, UDFs, FDR schemas...
+- models :
+  - périmètres de compétence géographique des collectivités (une table par cas d'usage, en pratique depuis geopackage ; mais sur FDR_SOURCE_NOM, TODO sur FDR_SOURCE rather than FDR_SOURCE_NOM)
+  - population des communes 2022 (en pratique depuis CSV)
+  - INSEE ODS commune & region (en pratique depuis geojson),
+  - metamodel indicators
 
 ## Rules
 
@@ -36,15 +43,18 @@ version with and without type-specific prefix
 
 **IMPORTANT** après dbt deps, remplacer le contenu de dbt_packages/dbt_profiler par celui de https://github.com/ozwillo/dbt-profiler (attention au "_", ne sera plus nécessaire quand une nouvelle version aura été publiée incluant https://github.com/data-mie/dbt-profiler/pull/38 )
 
-### Install : DBT (1.0), fal, ckanapi
+### Install : DBT (1.2.1), fal (0.5.2), ckanapi
 
 comme à https://docs.getdbt.com/dbt-cli/install/pip :
 (mais sur Mac OSX voir https://docs.getdbt.com/dbt-cli/install/homebrew )
 
 ```shell
-sudo apt-get install git libpq-dev python-dev python3-pipsudo apt-get remove python-cffisudo pip install --upgrade cffipip install cryptography~=3.4
+# prérequis python :
+sudo apt-get install git libpq-dev python-dev python3-pipsudo apt-get remove python-cffi
+sudo pip install --upgrade cffipip install cryptography~=3.4
+# installer le venv de la version de python : (testés : python3.8-venv, python3.10-venv)
+sudo apt install python3.10-venv
 
-sudo apt install python3.8-venv
 python3 -m venv dbt-env
 source dbt-env/bin/activate
 pip install --upgrade pip wheel setuptools
@@ -58,6 +68,7 @@ pip install openpyxl
 
 # mise à jour :
 #pip install --upgrade dbt-postgres
+# ou faire un nouveau venv et refaire la précédente procédure d'installation !
 ```
 
 ### Configuration
@@ -110,6 +121,22 @@ dbt run test --store-failures # les lignes en erreurs des tests sont stockés (d
 # debug :
 vi logs/dbt.log
 
+```
+
+### Release
+
+```shell
+# en dev :
+pip freeze > requirements.txt
+# et y commenter la ligne pkg_resources sinon erreur No module named pkg_resources
+# pas nécessaire, voir https://stackoverflow.com/questions/7446187/no-module-named-pkg-resources https://stackoverflow.com/questions/20635230/how-can-i-see-all-packages-that-depend-on-a-certain-package-with-pip
+
+# en prod (après backup) :
+# installer prérequis python et venv (voir plus haut)
+python3 -m venv dbt-env
+. dbt-env/bin/activate
+pip install -r requirements.txt
+# et refaire les parties Configuration et Build & run
 ```
 
 ### DBT resources
