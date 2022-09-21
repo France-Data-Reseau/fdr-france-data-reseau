@@ -136,7 +136,12 @@ pip freeze > requirements.txt
 python3 -m venv dbt-env
 . dbt-env/bin/activate
 pip install -r requirements.txt
-# et refaire les parties Configuration et Build & run
+
+cp profiles.yml ~/.dbt/profiles.yml
+dbt deps
+# NB. dbt seed est supposé déjà fait en prod pour tous ls projets une fois pour toutes depuis un poste de dev
+./fdr_run_import_dbt_all.sh
+# ou faire individuellement ce qu'il y a dans ce script
 ```
 
 ### DBT resources

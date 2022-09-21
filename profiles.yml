@@ -1,0 +1,84 @@
+fdr_appuiscommuns:
+  target: test
+  outputs:
+    dev:
+      type: postgres
+      host: localhost
+      user: fdr
+      password: fdr
+      port: 5432
+      dbname: fdr
+      schema: dbt_fdr
+      threads: 4
+    prod:
+      type: postgres
+      host: "{{ env_var('FDR_SYNC_POSTGRES_HOST') }}"
+      user: "{{ env_var('FDR_SYNC_POSTGRES_USER') }}"
+      password: "{{ env_var('FDR_SYNC_POSTGRES_PASSWORD') }}"
+      port: "{{ env_var('FDR_SYNC_POSTGRES_PORT') | as_number }}"
+      dbname: "{{ env_var('FDR_SYNC_POSTGRES_DATABASE') }}"
+      schema: "france-data-reseau"
+      threads: 4
+fdr_eaupotable:
+  target: test
+  outputs:
+    dev:
+      type: postgres
+      host: localhost
+      user: fdr
+      password: fdr
+      port: 5432
+      dbname: fdr
+      schema: dbt_fdr
+      threads: 4
+    prod:
+      type: postgres
+      host: "{{ env_var('FDR_SYNC_POSTGRES_HOST') }}"
+      user: "{{ env_var('FDR_SYNC_POSTGRES_USER') }}"
+      password: "{{ env_var('FDR_SYNC_POSTGRES_PASSWORD') }}"
+      port: "{{ env_var('FDR_SYNC_POSTGRES_PORT') | as_number }}"
+      dbname: "{{ env_var('FDR_SYNC_POSTGRES_DATABASE') }}"
+      schema: "france-data-reseau"
+      threads: 4
+fdr_bornesderecharge:
+  target: prod
+  outputs:
+    dev:
+      type: postgres
+      host: localhost
+      user: fdr
+      password: fdr
+      port: 5432
+      dbname: fdr
+      schema: dbt_fdr
+      threads: 4
+    prod:
+      type: postgres
+      host: "{{ env_var('FDR_SYNC_POSTGRES_HOST') }}"
+      user: "{{ env_var('FDR_SYNC_POSTGRES_USER') }}"
+      password: "{{ env_var('FDR_SYNC_POSTGRES_PASSWORD') }}"
+      port: "{{ env_var('FDR_SYNC_POSTGRES_PORT') | as_number }}"
+      dbname: "{{ env_var('FDR_SYNC_POSTGRES_DATABASE') }}"
+      schema: "france-data-reseau"
+      threads: 4
+fdr_francedatareseau:
+  target: prod
+  outputs:
+    dev:
+      type: postgres
+      host: localhost
+      user: fdr
+      password: fdr
+      port: 5432
+      dbname: fdr
+      schema: dbt_fdr
+      threads: 4
+    prod:
+      type: postgres
+      host: "{{ env_var('FDR_SYNC_POSTGRES_HOST') }}"
+      user: "{{ env_var('FDR_SYNC_POSTGRES_USER') }}"
+      password: "{{ env_var('FDR_SYNC_POSTGRES_PASSWORD') }}"
+      port: "{{ env_var('FDR_SYNC_POSTGRES_PORT') | as_number }}"
+      dbname: "{{ env_var('FDR_SYNC_POSTGRES_DATABASE') }}"
+      schema: "france-data-reseau"
+      threads: 4
