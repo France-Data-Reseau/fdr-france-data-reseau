@@ -13,7 +13,7 @@ geojson version could be kept to not to have to regenerate it for CSV output (TO
 
 {{
   config(
-    enabled=not target.name.endswith('_stellio'),
+    enabled=target.name.endswith('_ckan'),
     materialized="table",
     indexes=[{'columns': ['geo_shape_4326'], 'type': 'gist'},]
   )

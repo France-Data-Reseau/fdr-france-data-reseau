@@ -8,7 +8,7 @@ json parse de location
 
 {{
   config(
-    enabled=not target.name.endswith('_stellio'),
+    enabled=target.name.endswith('_ckan'),
     materialized="view"
   )
 }}
