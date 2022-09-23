@@ -10,8 +10,12 @@ Cette méthode est plus efficace que de nombreux appels à l'API CKAN.
   - téléchargement depuis CKAN par son API
   - puis, si FDR_TARGET!=archive, import selon le format.
 - formats supportés :
-  - geopackage et geojson (par exécution de la commande ogr2ogr de GDAL, pouvant être dockérisée).
-D' autres formats géographiques peuvent l'être facilement par la même méthode.
+  - geopackage, geojson, shp (par exécution de la commande ogr2ogr de GDAL, pouvant être dockérisée).
+D'autres formats géographiques peuvent l'être facilement par la même méthode.
+    - SHP FAQ - error "Unable to open datasource" : Shapefile should be a ZIP with AT ITS ROOT DIR 4 four files with the same
+name and a different extension : .dbf, .prj, .shp, .shx. See example that works at https://gadm.org/download_country.html .
+    - For the administrator : import.py working dir must not have space in its path (else ogr2ogr error error "Unable to open datasource",
+see https://gis.stackexchange.com/questions/70315/handling-file-names-with-spaces-in-ogr2ogr).
   - CSV, xlsx, xls : par pandas et DBT (aidé de fal et fal_ext.py), vers des champs texte seulement.
 On le préfère à la visibilisation des tables importées par CKAN dans sa base Datastore, qui dépend trop de CKAN et fournit
 des types de champs des fois faux et pas trivialement contrôlables.
@@ -241,7 +245,8 @@ def compute_has_changed(resource, step='default'):
     resource_key = build_resource_key(resource, step)
     has_stayed_same = resource_key in import_state and last_changed_string and import_state[resource_key] == last_changed_string
     if has_stayed_same:
-        print('import not changed, skip in step', step, resource_key, import_state.get(resource_key), last_changed_string)
+        #print('import not changed, skip in step', step, resource_key, import_state.get(resource_key), last_changed_string)
+        pass
     else:
         print('import changed in step', step, resource, resource_key, import_state.get(resource_key), last_changed_string)
     return not has_stayed_same
@@ -274,21 +279,23 @@ def build_last_changed_string(resource):
 
 '''
 Downloads from CKAN a local copy at a path mirroring CKAN's
-and including resource id to avoid conflicts.
+and including resource id to avoid conflicts,
+AND without spaces in the file path (so neither must working dir path !) else ogr error "Unable to open datasource".
 '''
 def download_ckan_resource(resource):
     step = 'download'
+    is_external_resource = pandas.isnull(resource['size']) # and NOT last_modified because even if in CKAN it's null, it's then
+    resource_file_extension = resource['url'].rsplit('.', 1)[-1]
     # use resource id in name else may conflict ex. data.csv :
-    source_file_path = cache_dir + '/ckan/' + resource['org_name'] + '/' + resource['ds_name'] + '/' + resource['id'] + '_' + resource['name']
+    source_file_path = os.path.sep.join([cache_dir, 'ckan', resource['org_name'], resource['ds_name'], resource['id'] + '.' + resource_file_extension])
     if not compute_has_changed(resource, step):
         # skip download
         return source_file_path
 
     Path(source_file_path).parents[0].mkdir(parents=True, exist_ok=True)
     internal_url = '/'.join([fdrckan_url, 'dataset', resource['ds_id'], 'resource', resource['id'], 'download', resource['url']])
-    is_external_resource = pandas.isnull(resource['size']) # and NOT last_modified because even if in CKAN it's null, it's then
-    # replaced by ds_metadata_modified otherwise Nifi QueryDatabaseTable can't detect it !
     url = resource['url'] if is_external_resource else internal_url
+    # replaced by ds_metadata_modified otherwise Nifi QueryDatabaseTable can't detect it !
     print('import download_ckan_resource', url, source_file_path, resource, is_external_resource, import_state.get(url))
     headers = {
         "Authorization": fdrckan_apikey
@@ -301,19 +308,24 @@ def download_ckan_resource(resource):
     return source_file_path
 
 
-def ogr2ogr(source_file, schema, table):
+'''
+- ogr problem with spaces in filename : https://gis.stackexchange.com/questions/70315/handling-file-names-with-spaces-in-ogr2ogr
+- access zip including shapefile using /vsizip/ : https://gdal.org/user/virtual_file_systems.html
+'''
+def ogr2ogr(source_file, schema, table, resource):
     schema_and_table = schema + '.' + table
+    is_zip = resource['url'].endswith('.zip')
     # see https://gis.stackexchange.com/questions/154004/execute-ogr2ogr-from-python
-    print(ogr2ogr_command, host, "' port='", port, "' user='", user, "' password='", password, "' dbname='", database, os.path.abspath(source_file), schema_and_table)
+    #print(ogr2ogr_command, host, "' port='", port, "' user='", user, "' password='", password, "' dbname='", database, os.path.abspath(source_file), schema_and_table)
     command = ogr2ogr_command.split(' ') + [
           #"--config", "PG_LIST_ALL_TABLES", "YES",
           "-f", "PostgreSQL",
           "-overwrite", # else not append, and if nothing command blocks when already exists ?! https://lists.osgeo.org/pipermail/gdal-dev/2021-July/054422.html
           #"-append", "-doo", "\"PRELUDE_STATEMENTS=SET ROLE 'france-data-reseau'\"", # https://lists.osgeo.org/pipermail/gdal-dev/2021-July/054422.html
           "PG:host='" + host + "' port='" + port + "' user='" + user + "' password='" + password + "' dbname='" + database + "'",
-           os.path.abspath(source_file), # else FAILURE: Unable to open datasource...
+          ('/vsizip/' if is_zip else '') + os.path.abspath(source_file), # else FAILURE: Unable to open datasource...
            "-nln", schema_and_table] # don't quote else they go in the name ! but ogr2ogr replaces ex. - by _...
-    #print(' '.join(command))
+    print(' '.join(command))
     try:
         subprocess.run(command, check=True, capture_output=True)
         # https://stackoverflow.com/questions/39563802/subprocess-calledprocesserror-what-is-the-error
@@ -322,26 +334,7 @@ def ogr2ogr(source_file, schema, table):
         print(e)
         return e.stderr.decode("utf-8") # e.output ; if not decode, sqlalchemy typeError: a bytes-like object is required, not 'str'
 
-def ogr2ogr_geojson(source_file, schema, table):
-    schema_and_table = schema + '.' + table
-    # see https://gis.stackexchange.com/questions/154004/execute-ogr2ogr-from-python
-    command = ogr2ogr_command.split(' ') + [
-        #"--config", "PG_LIST_ALL_TABLES", "YES",
-        "-f", "PostgreSQL",
-        "-overwrite", # else not append, and if nothing command blocks when already exists ?!
-        "PG:host='" + host + "' port='" + port + "' user='" + user + "' password='" + password + "' dbname='" + database + "'",
-        source_file,
-        "-nln", schema_and_table] # don't quote else they go in the name ! but ogr2ogr replaces ex. - by _...
-    #print(' '.join(command))
-    try:
-        subprocess.run(command, check=True, capture_output=True)
-        # https://stackoverflow.com/questions/39563802/subprocess-calledprocesserror-what-is-the-error
-        return None
-    except subprocess.CalledProcessError as e:
-        print(e)
-        return e.stderr.decode("utf-8") # e.output ; if not decode, sqlalchemy typeError: a bytes-like object is required, not 'str'
-
-def csv_to_dbt_table(source_file_path, schema, table):
+def csv_to_dbt_table(source_file_path, schema, table, resource):
     try:
         # infer separator, and parse all fields as string see https://stackoverflow.com/questions/16988526/pandas-reading-csv-as-string-type
         parsed_file_df = pandas.read_csv(source_file_path, sep = None, dtype=str)
@@ -353,7 +346,7 @@ def csv_to_dbt_table(source_file_path, schema, table):
         print('Error importing CSV', e)
         return str(e)
 
-def excel_to_dbt_table(source_file_path, schema, table):
+def excel_to_dbt_table(source_file_path, schema, table, resource):
     try:
         # infer separator, and parse all fields as string see https://stackoverflow.com/questions/16988526/pandas-reading-csv-as-string-type
         parsed_file_df = pandas.read_excel(source_file_path, dtype=str)
@@ -368,7 +361,7 @@ def excel_to_dbt_table(source_file_path, schema, table):
 format_to_import_fct = {
     'gpkg' : ogr2ogr,
     'geopackage' : ogr2ogr,
-    'geojson' : ogr2ogr, # ogr2ogr_geojson
+    'geojson' : ogr2ogr,
     'shp' : ogr2ogr,
     'shapefile' : ogr2ogr,
     'csv' : csv_to_dbt_table,
@@ -460,7 +453,7 @@ def import_resource(resource, import_state):
             if import_fct:
                 # TODO in org schema ! and afterwards create view with schema, use_case_prefix
                 #print('supported format', format, resource['name'])
-                res = import_fct(source_file_path, schema, table)
+                res = import_fct(source_file_path, schema, table, resource)
                 step = import_fct.__name__
 
             else:
