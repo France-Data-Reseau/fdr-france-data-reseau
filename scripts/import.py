@@ -119,7 +119,8 @@ fdrckan_url = os.getenv("FDR_SYNC_CKAN_URL")
 fdrckan_apikey = os.getenv("FDR_SYNC_CKAN_API_KEY")
 fdrckan = RemoteCKAN(fdrckan_url, apikey=fdrckan_apikey, user_agent=ua)
 
-ogr2ogr_command = os.getenv("FDR_SYNC_OGR2OGR_COMMAND")
+ogr2ogr_command_docker_prefix = os.getenv("FDR_SYNC_OGR2OGR_COMMAND_DOCKER_PREFIX", "docker run --rm --net=host -v /home:/home")
+ogr2ogr_command_docker_image = os.getenv("FDR_SYNC_OGR2OGR_COMMAND_DOCKER_IMAGE", "osgeo/gdal:alpine-small-latest")
 host = os.getenv("FDR_SYNC_POSTGRES_HOST")
 port = os.getenv("FDR_SYNC_POSTGRES_PORT")
 database = os.getenv("FDR_SYNC_POSTGRES_DATABASE")
@@ -311,28 +312,61 @@ def download_ckan_resource(resource):
 '''
 - ogr problem with spaces in filename : https://gis.stackexchange.com/questions/70315/handling-file-names-with-spaces-in-ogr2ogr
 - access zip including shapefile using /vsizip/ : https://gdal.org/user/virtual_file_systems.html
+- when UnicodeDecodeError when decoding ogr2ogr process error, it is reexecuted with PGCLIENTENCODING=LATIN1 env var
+being set, in an attempt to handle Windows-made files esp. Shapefile zipped files. This means that when NOT starting
+ogr2ogr through its docker container, these files won't be able to be handled.
 '''
-def ogr2ogr(source_file, schema, table, resource):
+def ogr2ogr(source_file, schema, table, resource, PGCLIENTENCODING=None):
     schema_and_table = schema + '.' + table
     is_zip = resource['url'].endswith('.zip')
     # see https://gis.stackexchange.com/questions/154004/execute-ogr2ogr-from-python
-    #print(ogr2ogr_command, host, "' port='", port, "' user='", user, "' password='", password, "' dbname='", database, os.path.abspath(source_file), schema_and_table)
-    command = ogr2ogr_command.split(' ') + [
+    is_ogr2ogr_docker_command = len(ogr2ogr_command_docker_prefix.strip()) > 0
+    ogr2ogr_command_prefix = ogr2ogr_command_docker_prefix if is_ogr2ogr_docker_command else ""
+    docker_env_vars = ["-e", "PGCLIENTENCODING=" + PGCLIENTENCODING] if PGCLIENTENCODING and is_ogr2ogr_docker_command else []
+    command = ogr2ogr_command_prefix.split(' ') + docker_env_vars + [
+          ogr2ogr_command_docker_image,
+          "ogr2ogr",
           #"--config", "PG_LIST_ALL_TABLES", "YES",
           "-f", "PostgreSQL",
           "-overwrite", # else not append, and if nothing command blocks when already exists ?! https://lists.osgeo.org/pipermail/gdal-dev/2021-July/054422.html
           #"-append", "-doo", "\"PRELUDE_STATEMENTS=SET ROLE 'france-data-reseau'\"", # https://lists.osgeo.org/pipermail/gdal-dev/2021-July/054422.html
+          # NB. should be PG:"..." but does not work here though it works manually
           "PG:host='" + host + "' port='" + port + "' user='" + user + "' password='" + password + "' dbname='" + database + "'",
+          # for zip esp Shapefile :
           ('/vsizip/' if is_zip else '') + os.path.abspath(source_file), # else FAILURE: Unable to open datasource...
            "-nln", schema_and_table] # don't quote else they go in the name ! but ogr2ogr replaces ex. - by _...
     print(' '.join(command))
     try:
-        subprocess.run(command, check=True, capture_output=True)
+        res = subprocess.run(command, check=True, capture_output=True)
+
         # https://stackoverflow.com/questions/39563802/subprocess-calledprocesserror-what-is-the-error
-        return None
+        error_msg = str(res.stderr)
+        is_error = "error" in error_msg.lower() # even though returncode=0 : stderr=b'ERROR 1: COPY statement failed.\nERROR:  invalid byte sequence for encoding "UTF8": 0xc9 0x56\nCONTEXT:  COPY apcom_raw_apcom_aat_gthdv2_252901145, line 1
+        if is_error:
+            print('import - error calling docker ogr2ogr :', error_msg)
+            if 'invalid byte sequence for encoding "UTF8"' in error_msg:
+                if not PGCLIENTENCODING:
+                    print('   attempting to run docker ogr2ogr again with  PGCLIENTENCODING=LATIN1 :')
+                    return ogr2ogr(source_file, schema, table, resource, PGCLIENTENCODING='LATIN1')
+                else:
+                    return 'import - while decoding docker ogr2ogr, too many UnicodeDecodeErrors'
+            else:
+                return error_msg
+        else:
+            return None
+
     except subprocess.CalledProcessError as e:
-        print(e)
-        return e.stderr.decode("utf-8") # e.output ; if not decode, sqlalchemy typeError: a bytes-like object is required, not 'str'
+        # res.returncode != 0
+        print('import - error calling docker ogr2ogr :', e)
+        try:
+            return e.stderr.decode("utf-8") # e.output ; if not decode, sqlalchemy typeError: a bytes-like object is required, not 'str'
+        except UnicodeDecodeError as ude:
+            print('import - while decoding docker ogr2ogr, UnicodeDecodeError', ude) # UnicodeDecodeError: 'utf-8' codec can't decode byte 0xc9 in position 437: invalid continuation byte
+            if not PGCLIENTENCODING:
+                print('   attempting to run docker ogr2ogr again with  PGCLIENTENCODING=LATIN1 :')
+                return ogr2ogr(source_file, schema, table, resource, PGCLIENTENCODING='LATIN1')
+            else:
+                return 'import - while decoding docker ogr2ogr, too many UnicodeDecodeErrors'
 
 def csv_to_dbt_table(source_file_path, schema, table, resource):
     try:
@@ -492,9 +526,9 @@ def import_resource(resource, import_state):
 
 def import_resources(schema_suffix = ''):
     print('import_resources start')
-    print('import_resources params:', fdrckan_url, ogr2ogr_command, host, port, database, user)
+    print('import_resources params:', fdrckan_url, ogr2ogr_command_docker_prefix, ogr2ogr_command_docker_image, host, port, database, user)
     print('import_resources conf:', fdr_cas_usages, all_formats, fdr_source_noms)
-    if not fdrckan_url or not ogr2ogr_command or not host or not port or not database or not user:
+    if not fdrckan_url or not host or not port or not database or not user:
         raise Exception("import_resources missing params, abort")
 
     import_state = {
