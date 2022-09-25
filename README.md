@@ -174,6 +174,7 @@ Gotchas - DBT :
 - embed yaml conf in .sql : https://docs.getdbt.com/reference/dbt-jinja-functions/fromyaml
 - dbt reuse : macros, packages (get executed first like they would be on their own including .sql files, but can pass different variables through root dbt_project.yml (?) ; TODO Q subpackages ?) https://www.fivetran.com/blog/how-to-re-use-dbt-guiding-rapid-mds-deployments
 - run_query() must be conditioned by execute else Compilation Error 'None' has no attribute 'table' https://docs.getdbt.com/reference/dbt-jinja-functions/execute
+- run_query() of write statements must be followed by a "commit;" ! (or a ";" ?)
 
 Gotchas - Jinja2 :
 - doc https://jinja.palletsprojects.com/en/3.0.x/templates
