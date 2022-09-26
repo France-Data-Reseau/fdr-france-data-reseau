@@ -1,10 +1,15 @@
 
 -- view over CKAN data required by import.py :
 -- (to be synchronized to DBT datastore ex. using Nifi or DBeaver-CE)
--- Nifi gotchas :
+-- Nifi conf & gotchas :
+-- - put it in QueryDatabaseTable Query parameter
 -- - orgid and dsid without _ else when used in Nifi PutDatabaseRecord's Update Keys (incremental), error (PK for ON CONFLICT)
--- - last_modified must never be null (so ds_metadata_modified used instead) else won't be detected when used in QueryDatabaseTable Maximum-value Columns
+-- - using a single Maximum-value column for Nifi QueryDatabaseTable,
+-- else if 2 columns are provided to it, they should BOTH increase to trigger its processing
+-- https://community.cloudera.com/t5/Support-Questions/QueryDatabaseTable-with-an-OR-instead-of-AND-when-using/m-p/308780
+-- NB. a consequence is that if we provide both of them, it doesn't work if r.last_modified is NULL i.e. external resource case
 create or replace view fdr_resource as (
+
 with dsex as (
 select
     package_id,
@@ -21,11 +26,9 @@ select
     (ARRAY_AGG(orgex.value) FILTER (WHERE orgex.key = 'FDR_SIREN'))[1] as "fdr_siren" -- "FDR_SIREN"
 from group_extra orgex
 group by orgex.group_id
-)
+), r_ds_org as (
 select
-r.id, r.name,
-(CASE WHEN r.last_modified IS NULL then ds.metadata_modified else r.last_modified end) as last_modified,
-r.size, r.format, r.extras, r.url,
+r.id, r.name, r.last_modified, r.size, r.format, r.extras, r.url,
 ds.id as dsid, ds.name as ds_name, ds.title as ds_title, ds.metadata_modified  as ds_metadata_modified,
 dsex.*,
 org.id as orgid, org.name as org_name, org.title as org_title, -- label
@@ -42,4 +45,13 @@ org.is_organization -- else mere group
 and "fdr_cas_usage" is not null -- "FDR_CAS_USAGE"
 --and r.format in ('CSV', 'Excel')
 and r.state = 'active' and ds.state = 'active'
+)
+select *,
+-- building Maximum-value column for Nifi QueryDatabaseTable :
+-- else if 2 columns are provided to it, they should BOTH increase to trigger its processing
+-- https://community.cloudera.com/t5/Support-Questions/QueryDatabaseTable-with-an-OR-instead-of-AND-when-using/m-p/308780
+-- NB. a consequence is that if we provide both of them, it doesn't work if r.last_modified is NULL i.e. external resource case
+GREATEST((CASE WHEN r.last_modified IS NULL then ds.metadata_modified else r.last_modified end), ds.metadata_modified) as last_changed,
+from r_ds_org
+
 )
