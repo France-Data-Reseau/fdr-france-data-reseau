@@ -38,7 +38,7 @@ def write_table(data, table_name, schema, model_for_connection, adapter, if_exis
     #with _existing_or_new_connection(
     #        adapter, _connection_name("write_target", relation, _hash=False), True
     #):
-    drop_cascade_stmt = f"drop table if exists \"{schema}\".\"{table_name}\" cascade"
+    drop_cascade_stmt = f"begin; drop table if exists \"{schema}\".\"{table_name}\" cascade; commit;"
     # 202209 fal code :
     #_execute_sql(
     #    adapter,
@@ -47,7 +47,6 @@ def write_table(data, table_name, schema, model_for_connection, adapter, if_exis
     #)
     with adapter.connection_named(_connection_name("write_table", model_for_connection, _hash=False)):
         adapter.execute(drop_cascade_stmt, auto_begin=True, fetch=True)
-        print('drop_cascade_stmt', drop_cascade_stmt)
 
         engine = _create_engine_from_connection(adapter)
 
