@@ -519,7 +519,8 @@ def import_resource(resource, import_state):
         "resource_id" : resource['id'], "resource_name" : resource['name'],
         "dataset_id" : resource['ds_id'], "dataset_name" : resource['ds_name'], "dataset_title" : resource['ds_title'],
         "org_id" : resource['org_id'], "org_name" : resource['org_name'], "org_title" : resource['org_title'], # label
-        "data_owner_id" : data_owner_id, "format" : format, "source_file_path" : source_file_path,
+        "data_owner_id" : data_owner_id, "u_email" : resource['u_email'],
+        "format" : format, "source_file_path" : source_file_path,
         "schema" : schema, "table" : table, "use_case_prefix" : use_case_prefix,
         "messages" : json.dumps(messages) # , indent = 4
     }
