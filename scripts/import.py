@@ -65,7 +65,7 @@ set -a ; PASSWORD=`openssl rand -base64 ${1:-16}` ; dbt run-operation create_use
 # then sync it to the "france-data-reseau".fdr_ckan_resource relation, either manually using ex. DBeaver-CE tasks
 # or automatically using ex. Nifi.
 # For Nifi and other solutions that require a table with PK index, here is a helper to create it :
-dbt run-operation create_fdr_ckan_resource_nifi --target prod_pgadmin_stellio
+dbt run-operation create_fdr_ckan_resource --target prod_pgadmin_stellio
 # NB. import.py should not require anything else.
 # If current (prod_admin) schema was (required by on-run-start create_udfs and as said import.py.) was not created
 # by previous create_roles_schemas DBT operation, it could be created as follows, which would need DB admin rights
