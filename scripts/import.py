@@ -334,7 +334,11 @@ def ogr2ogr(source_file, schema, table, resource, PGCLIENTENCODING=None):
           "PG:host='" + host + "' port='" + port + "' user='" + user + "' password='" + password + "' dbname='" + database + "'",
           # for zip esp Shapefile :
           ('/vsizip/' if is_zip else '') + os.path.abspath(source_file), # else FAILURE: Unable to open datasource...
-           "-nln", schema_and_table] # don't quote else they go in the name ! but ogr2ogr replaces ex. - by _...
+           "-nln", schema_and_table,
+           "-nlt", "GEOMETRY" # else error importing data containing a MultiPolygon after a Polygon
+           # (ex. Vendée & Seine et Marne "perimetre"), see https://gis.stackexchange.com/questions/259442/unable-to-upload-large-vector-file-to-postgis-errorgeometry-type-multisurface
+           # and https://gis.stackexchange.com/questions/426265/ogr2ogr-multi-surface-multi-polygon
+    ] # don't quote else they go in the name ! but ogr2ogr replaces ex. - by _...
     print(' '.join(command))
     try:
         res = subprocess.run(command, check=True, capture_output=True)
