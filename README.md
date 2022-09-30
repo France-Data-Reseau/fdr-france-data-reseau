@@ -12,7 +12,7 @@ Projet des traitements globaux et des données mutualisées entre cas d'usage
     - and dedupe, UDFs, FDR schemas...
 - models :
   - périmètres de compétence géographique des collectivités (une table par cas d'usage, en pratique depuis geopackage ; mais sur FDR_SOURCE_NOM, TODO sur FDR_SOURCE rather than FDR_SOURCE_NOM)
-  - population des communes 2022 (en pratique depuis CSV)
+  - population des communes 2022 (en pratique depuis CSV), aussi davantage de données démographiques de communes mais de 2014
   - INSEE ODS commune & region (en pratique depuis geojson),
   - metamodel indicators
 
@@ -21,10 +21,17 @@ Projet des traitements globaux et des données mutualisées entre cas d'usage
 ### tables ou vues produites par DBT (dans le schema eaupotable) :
 
 - <FDR_USE_CASE>_raw_ : tables importées depuis les ressources CKAN par import.py
-- *_src_*_parsed (vue) : union générique des différentes tables importées de chaque collectivité, avec conversion automatique des champs
-- *_src_*_translated (table) : matérialise en table, unifie _en_service et _abandonnees, corrige (0-padding des codes) et enrichit (des champs techniques : id unique global reproductible...)
+- *_src_*_parsed (vue) : union générique des différentes tables importées de chaque collectivité, avec conversion
+automatique des champs vers leur _definition .sql
+- *_src_*_translated (table) : (matérialise en table ou pas) unifie les différentes FDR_SOURCE_NOM (ex. Eau potable :
+_en_service et _abandonnees), corrige (ex. Eau potable : 0-padding des codes) et enrichit localement
+(des champs techniques : id unique global reproductible...)
 - *_std_* (vue) : simple raccourci vers la précédente
 - => *_std_*_labelled (vue) : l'enrichit des labels des codes
+- _unified : unifié entre différentes FDR_SOURCE_NOM
+- _deduped : dédupliqué
+- _enriched : l'enrichit par exemple des communes, population / démographie...
+- _kpi_ : indicateurs
 
 ### prefix
 
@@ -37,6 +44,36 @@ version with and without type-specific prefix
 - import_table / src_table : only for linking purpose since contains fields that are also available (use case, FDR_SOURCE_NOM, data_owner_id...)
 - src_priority : must also be enough for src_id to be unique (so that both are enough in order_by_fields), so merely contains src_name
 - src_id : the original id provided in the source
+- id : unique id across all data_owner_id and FDR_SOURCE_NOM
+- uuid : reproducible UUID that is generated from id
+
+### Other chosen best practices
+
+geo :
+4326 by default (ST_Contains ; so also indexed),
+but also _2154 to compute distances in meters (not indexed because does not improve performance)
+
+as much as possible (materialized) as SQL views, except :
+- EITHER _unified or _translated (then with indexes),
+- and _deduped (to store dedup results ; and which must also run on indexed data)
+
+which fields are kept :
+imported table-specific fields are kept as much as possible,
+__src fields are also provided to help debug conversion (in debug mode),
+but both are skipped if they become too much (ex. twice slower with 350 fields ! there a column oriented DB becomes
+appropriate), typically across several sources so in _unified
+
+Nifi-ization flow / "always on" / on the fly / incremental :
+TODO
+
+Preventing DBT from dropping relations on which views created in Superset depend :
+as in fdr_src_population_communes_typed :
+WARNING made incremental, else DBT cascade drops dependent views created in Superset
+i.e. only created if does not yet exist, though filled everytime (so must have a unique_key)
+(TODO LATER macro that empties them on-run-start)
+bonus : if run with is_incremental, only fills the ones with a newer last_changed
+NB. alternatives : put them in DBT (!), enabled=false, or make them as tables (filled by Nifi)
+see https://github.com/dbt-labs/dbt-core/issues/2185
 
 
 ## Install, build & run
@@ -65,6 +102,7 @@ pip install ckanapi
 pip install requests
 # for Excel import (pandas.to_excel()) :
 pip install openpyxl
+pip install xlrd
 
 # mise à jour :
 #pip install --upgrade dbt-postgres
@@ -174,7 +212,7 @@ Gotchas - DBT :
 - embed yaml conf in .sql : https://docs.getdbt.com/reference/dbt-jinja-functions/fromyaml
 - dbt reuse : macros, packages (get executed first like they would be on their own including .sql files, but can pass different variables through root dbt_project.yml (?) ; TODO Q subpackages ?) https://www.fivetran.com/blog/how-to-re-use-dbt-guiding-rapid-mds-deployments
 - run_query() must be conditioned by execute else Compilation Error 'None' has no attribute 'table' https://docs.getdbt.com/reference/dbt-jinja-functions/execute
-- run_query() of write statements must be followed by a "commit;" ! (or a ";" ?)
+- run_query() of write statements must be followed by a "commit;" ! (or a ";" ?)  https://docs.getdbt.com/reference/dbt-jinja-functions/run_query
 
 Gotchas - Jinja2 :
 - doc https://jinja.palletsprojects.com/en/3.0.x/templates
