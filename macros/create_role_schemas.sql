@@ -18,30 +18,43 @@ TODO ? --args '{ schemas: ["france-data-reseau", "appuiscommuns", "sdirve", "eau
 
 {#
 as said in import.py :
-create a DBT admin user and use it from now on, i.e. in DBT configure it in prod(_stellio) profile.
+creates a user with said password if it doesn't already exist.
+Grants him the <schema + schema_suffix> roles
 Also does the rights / permissions magic (allow other users permissions on tables created by this user :
-FOR EACH USER AND EACH SCHEMA / ROLE alter default privileges in schema schemagroup grant all privileges on tables to schemagroup)
+FOR EACH USER AND EACH SCHEMA / ROLE (so for each schema_suffix also) alter default privileges in schema schemagroup grant all privileges on tables to schemagroup)
 Usage :
 set -a ; PASSWORD=`openssl rand -base64 ${1:-16}` ; dbt run-operation create_user --args '{name: "dbt_admin_user", schemas_string: "appuiscommuns,eaupotable,sdirve,eclairage_public,france-data-reseau"}' --target prod_(pg)admin(_stellio) ; set +a ; echo password : $PASSWORD
+
+Gotchas :
+- do not do : ALTER ROLE <user> SET ROLE = <schemagroup>; because that would prevent him from using his other roles
+(schemagroup_test, mutualized group...), which would appear in the "rolconfig" column of pg_catalog.pg_roles ;
+in which case undo it with : ALTER ROLE <user> SET ROLE = DEFAULT;
+see https://www.postgresql.org/docs/current/sql-alterrole.html https://dba.stackexchange.com/questions/215549/automatically-invoke-set-role-when-connecting-to-postgresql
 #}
 {% macro create_user(name, schemas_string, password=env_var('PASSWORD'), schema_suffixes = var("schema_suffixes")) %}
 {% set schemas = schemas_string.split(',') %}
 {% set sql %}
+
+-- schemas={{ schemas }} schema_suffixes={{ schema_suffixes }}
 --CREATE USER "{{ name }}" IN GROUP {{ '"' + '","'.join(schemas) +'"' }} PASSWORD '{{ password }}' CREATEDB;
 --CREATE USER "{{ name }}" PASSWORD '{{ password }}' CREATEDB;
 select public.create_user_if_not_exists('{{ name }}', '{{ password }}');
 {% for schema in schemas %}
-    {#% for schema_suffix in schema_suffixes %#}
+    {% for schema_suffix in schema_suffixes %}
         grant "{{ schema ~ schema_suffix }}" to "{{ name }}";
-    {#% endfor %#}
+    {% endfor %}
 {% endfor %}
+
 SET ROLE "{{ name }}";
 {% for schema in schemas %}
-    {#% for schema_suffix in schema_suffixes %#}
+    {% for schema_suffix in schema_suffixes %}
         alter default privileges in schema "{{ schema ~ schema_suffix }}" grant all privileges on tables to "{{ schema ~ schema_suffix }}";
-    {#% endfor %#}
+        alter default privileges in schema "{{ schema ~ schema_suffix }}" grant all privileges on sequences to "{{ schema ~ schema_suffix }}"; -- for now not needed
+        alter default privileges in schema "{{ schema ~ schema_suffix }}" grant all privileges on functions to "{{ schema ~ schema_suffix }}"; -- else another user's on-run-start create_udfs() will explode
+    {% endfor %}
 {% endfor %}
 RESET ROLE;
+
 {% endset %}
 {% do log("create_user sql " ~ sql, info=True) %}
 {% do run_query(sql) %}
@@ -84,7 +97,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp"; -- TODO else dbt error : function uu
 {% set sql %}
 select public.create_role_if_not_exists('{{ name }}');
 CREATE SCHEMA IF NOT EXISTS AUTHORIZATION "{{ name }}";
-alter default privileges in schema "{{ name }}" grant all privileges on tables to "{{ name }}"; -- includes views ; must be called after new ones are created ?!
+alter default privileges in schema "{{ name }}" grant all privileges on tables to "{{ name }}"; -- NOO ; includes views ; must be called after new ones are created ?!
 
 {# actually not required ? #}
 {% for shared_data_role in shared_data_roles | select("ne", name) %}

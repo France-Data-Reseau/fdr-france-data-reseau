@@ -4,13 +4,14 @@
   )
 }}
 
-{% set use_case_prefix = 'apcom' %}
-{#% set FDR_SOURCE_NOM = this.name | replace(use_case_prefix ~ '_src_', '') | replace('_parsed', '') | replace('_dict', '') %#}
-{% set FDR_SOURCE_NOM = 'perimetre_elec_distrib' %}
+{% set source_sql_criteria %}
+"FDR_CAS_USAGE" = 'apcom' and "FDR_ROLE" = 'perimetre'
+{% endset %}
+{# rather than {% set FDR_SOURCE_NOM = 'perimetre_elec_distrib' %} #}
+
 {% set has_dictionnaire_champs_valeurs = this.name.endswith('_dict') %}
 
-{{ fdr_francedatareseau.fdr_source_union_from_name(FDR_SOURCE_NOM,
+{{ fdr_francedatareseau.fdr_source_union_from_criteria(source_sql_criteria,
     has_dictionnaire_champs_valeurs,
     this,
-    def_model=ref('fdr_def_perimetre_definition'),
-    FDR_CAS_USAGE='apcom') }}
+    def_model=ref('fdr_def_perimetre_definition')) }}

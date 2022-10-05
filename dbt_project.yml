@@ -11,16 +11,9 @@ vars:
   ns: 'fdr.francedatareseau.fr' # access with var('ns')
   enableOverTime: false # sinon problèmes, voir dans les exploitation/*_ot.sql
   enableProfiling: false
-  test_extract_suffixes:
-    #- _extract_stg
-    #- _extract
-    - _example_stg
-    - _example
-    #- _definition_stg
-    #- _definition
   schema_suffixes:
     - ""
-    #- "_test"
+    - "_test"
   # TODO (level of) enablement of each source
   # TODO or / and setup/conf() macros
   schemas: [ 'france-data-reseau', 'appuiscommuns', 'sdirve', 'eaupotable', 'eclairage_public' ]

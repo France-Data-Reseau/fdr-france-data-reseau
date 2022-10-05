@@ -19,4 +19,8 @@ with imported as (
     srid='4326') }}
 {# , best_geometry_columns=['geom', 'geometrie'], target_geometry_column_name='geometry' #}
 )
-select * from imported
+
+select
+    "{{ schema }}".to_numeric_or_null("Population") as "Population__numeric",
+    *
+from imported

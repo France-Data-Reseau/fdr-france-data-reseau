@@ -1,8 +1,9 @@
 {#
-single step deduplication
+single step (identical) deduplication
 (rather than 1. list dups couples 2. process them according to any rules (CTE on their values AND possibly enriched by human experts choices) 3. loop)
 
-TODO obviously faster if indexed on id_fields
+89s on apcom osm sup with no index (!)
+TODO obviously faster if indexed on id_fields ?
 
 example :
 {{ dedupe('id_deduped', id_fields=['"geometry"']) }}

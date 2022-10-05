@@ -23,8 +23,8 @@ Projet des traitements globaux et des données mutualisées entre cas d'usage
 - <FDR_USE_CASE>_raw_ : tables importées depuis les ressources CKAN par import.py
 - *_src_*_parsed (vue) : union générique des différentes tables importées de chaque collectivité, avec conversion
 automatique des champs vers leur _definition .sql
-- *_src_*_translated (table) : (matérialise en table ou pas) unifie les différentes FDR_SOURCE_NOM (ex. Eau potable :
-_en_service et _abandonnees), corrige (ex. Eau potable : 0-padding des codes) et enrichit localement
+- *_src_*(_translated) (table) : (matérialise en table ou pas) unifie les différentes FDR_SOURCE_NOM (ex. Eau potable :
+_en_service et _abandonnees), corrige (ex. Eau potable : 0-padding des codes) et enrichit localement.
 (des champs techniques : id unique global reproductible...)
 - *_std_* (vue) : simple raccourci vers la précédente
 - => *_std_*_labelled (vue) : l'enrichit des labels des codes
@@ -49,13 +49,20 @@ version with and without type-specific prefix
 
 ### Other chosen best practices
 
+deploy :
+first in _test schema (including depending DBT projects) : check visually outputs that are used outside, then switch key
+Superset charts to use them (in another configuration of the same database named "TEST ...")
+if OK, then in prod schema : idem, if problems let / put Superset charts on _test data
+NB. out platform-processing code should also output such a test version in the _test schema
+
 geo :
 4326 by default (ST_Contains ; so also indexed),
 but also _2154 to compute distances in meters (not indexed because does not improve performance)
 
-as much as possible (materialized) as SQL views, except :
+as much as possible (materialized) as SQL views (helps nifi-ization, but also performance because storing fields takes time),
+except :
 - EITHER _unified or _translated (then with indexes),
-- and _deduped (to store dedup results ; and which must also run on indexed data)
+- either _deduped or _dedupe_candidates (to store dedup results ; and which must also run on indexed data)
 
 which fields are kept :
 imported table-specific fields are kept as much as possible,
@@ -74,6 +81,19 @@ i.e. only created if does not yet exist, though filled everytime (so must have a
 bonus : if run with is_incremental, only fills the ones with a newer last_changed
 NB. alternatives : put them in DBT (!), enabled=false, or make them as tables (filled by Nifi)
 see https://github.com/dbt-labs/dbt-core/issues/2185
+
+Working with example data :
+- if the "use_example" variable is true in dbt_project.yml, _translated steps may use an example source model rather than the regular data
+(i.e. the _parsed step with the union of imported tables with the same FDR_SOURCE_NOM).
+For now only in apcom non native sources.
+- to avoid static data files (examples and their expected...) having empty values being interpreted by DBT as their
+column being of int4 type, fill all of the first line's column values (rather than setting column_types in the seeds
+part of _schema.yml)
+
+Other disabled by default features and examples :
+  enableArrayLinked: false # in apcom
+  enableOverTime: false # sinon problèmes, voir dans les exploitation/*_ot.sql
+  enableProfiling: false
 
 
 ## Install, build & run
@@ -226,6 +246,7 @@ Gotchas - DBeaver :
 - sometimes,
 
 Gotchas - PostgreSQL :
+- UNION without ALL removes duplicates lines according to the columns of the first column statement
 - HINT:  No function matches the given name and argument types. => add explicit type casts to the arguments
 - FAQ postgres blocks & logs says WARNING:  there is already a transaction in progress => try restarting DBeaver (see above), or else terminate all running queries :
   SELECT pg_cancel_backend(pid) FROM pg_stat_activity WHERE state = 'active' and pid <> pg_backend_pid();

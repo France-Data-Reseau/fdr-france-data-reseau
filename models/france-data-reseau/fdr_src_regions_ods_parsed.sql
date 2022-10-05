@@ -15,6 +15,8 @@ see _indexed
 with imported as (
 {{ fdr_francedatareseau.fdr_source_union_from_name(FDR_SOURCE_NOM,
     has_dictionnaire_champs_valeurs,
-    this) }}
+    this,
+    srid='4326') }}
+{# , best_geometry_columns=['geom', 'geometrie'], target_geometry_column_name='geometry' #}
 )
 select * from imported
