@@ -243,10 +243,12 @@ python3 -m venv dbt-env
 pip install -r requirements.txt
 
 cp profiles.yml ~/.dbt/profiles.yml
-dbt deps
-cd ../fdr-eaupotable
-dbt deps
+# et les compléter avec les informations de connexion
+
 cd ../fdr-france-data-reseau
+# la première fois :
+./fdr_reset_run_import_dbt_all.sh
+# par la suite :
 # NB. dbt seed est supposé déjà fait en prod pour tous ls projets une fois pour toutes depuis un poste de dev
 ./fdr_run_import_dbt_all.sh
 # ou faire individuellement ce qu'il y a dans ce script
