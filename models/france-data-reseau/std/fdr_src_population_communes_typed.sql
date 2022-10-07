@@ -3,6 +3,8 @@ Population des communes
 
 Now provided in fdr_std_communes_ods
 
+TODO rename _std_
+
 WARNING made incremental, else DBT cascade drops dependent views created in Superset
 NB. alternatives : put them in DBT (!), enabled=false, or make them as tables (filled by Nifi)
 see https://github.com/dbt-labs/dbt-core/issues/2185

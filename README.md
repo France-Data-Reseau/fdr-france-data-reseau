@@ -88,7 +88,7 @@ NB. cela signifie aussi leur donner une unique_key et rajouter un filtre typique
 => que ne soient traitées que les _src et les _std qui sont incrémentales
 - pour faire un traitement non complet :
   - en ayant taggé "incremental" lesdites _std_ qui sont en incrémental,
-  - dbt run --target prod --select apcom.src tag:incremental
+  - dbt run --target prod --select fdr.src fdr.perimetre tag:incremental
   
 ### Other chosen best practices
 
