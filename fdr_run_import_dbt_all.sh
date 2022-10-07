@@ -19,5 +19,5 @@ dbt run --target prod --select fdr.src fdr.perimetre tag:incremental
 cd ../fdr-eaupotable
 # TODO dbt run --target prod --select eaupot.src tag:incremental
 dbt run --target prod
-cd ../fdr_appuiscommuns
+cd ../fdr-appuiscommuns
 dbt run --target prod --select apcom.src tag:incremental

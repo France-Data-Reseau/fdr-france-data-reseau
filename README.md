@@ -293,7 +293,19 @@ Gotchas - Jinja2 :
 
 Gotchas - DBeaver :
 - a big query (with WITH statement...) throws error : DBeaver uses ";" character AND empty lines as statements separator, so remove these first https://dbeaver.io/forum/viewtopic.php?f=2&t=1687
-- sometimes,
+- sometimes, a relation can't be refreshed : it might be because a change has been made to it in the table view of
+DBeaver (maybe mistakenly), but not persisted. In this case, close said table view and click to cancel or persist the change.
+- doc :
+- screenshots
+- outil SQL ex. DBeaver,
+- guide / tutorial plus précis de techniques pour comment lire / analyser / introspecter, parser, nettoyer (du mail à Etienne), retyper, normaliser, vérifier une source
+- manuel de comment bien adopter / adapter / (ré)utiliser le(s) projet(s) dbt de base / exemple et mutualisés
+- TODO outiller : génération de CSV (ex. _expected.csv..., mais plutôt pas __definition.csv qui doit être fabriqué et non réel) depuis relation SQL model DBT de source nettoyée voire unifiée
+- Exporter une relation vers CSV :
+  - sur les données, bouton droit > Exporter les résultats... et dans la fenêtre modale : Exporter en fichier CSV,
+  - Suivant : Fetch size = 5 (pour un exemple, ou ex. 100000 pour tout),
+  - Suivant : optionellement changed Séparateur à ; si on préfère Excel,
+  - Suivant : si besoin changer le nom du fichier, Suivant : commencer
 
 Gotchas - PostgreSQL :
 - UNION without ALL removes duplicates lines according to the columns of the first column statement
@@ -326,3 +338,24 @@ Gotchas - FAL :
     - local and public : as dbt "metas" at the location of the script declaration accessed by
     - BUT global or secret : as OS env vars accessed through python ( https://github.com/fal-ai/fal/tree/main/examples/slack-example ; rather than env_var("DBT_ENV_SECRET_...") which is only accessible in profiles/packages.yml see https://docs.getdbt.com/reference/dbt-jinja-functions/env_var https://github.com/dbt-labs/dbt-core/issues/2514 )
 - airbyte :)
+
+
+## Development notes
+
+### Nommage
+
+- FINAL :
+  - apcom_birdz_type_src est la dbt source qui unit (hors dbt donc) toutes les données source au format birdz
+  - apcom_def_type_src est la dbt source qui unit (hors dbt donc) toutes les données source au format natif
+- type
+- partitionnement (qui peut être type de source voire source avant normalisation, divers enrichissement pour divers usages après)
+- (date : oui est une "version" mais pas un partitionnement, en général elle est DANS la donnée, à moins d'être un snapshot figé, car si pas figé est une branche et donc pas vraiement une date)
+- workflow, étape de, majeure : peuvent en être des indicateurs / guides. Ils sont :
+  - "source" (décliné par source : megalis... TODO native, CSV). Les éléments discriminants sont le type fourni, et si nécessaire le traitement appliqué, voire le type source (SI un type normalisé provient de plusieurs types sources, qui sont alors peut-être autant de sous-types de sources).
+  - "normalisation" sur sa partie définition, unification et déduplication. Les éléments discriminants sont le type fourni, puis l'étape appliquée.
+  - "exploitation" / usage (indicateurs / kpi, mais sans doute pas la version CSV, geopackage, geoserver). Les discriminants sont :
+    - le concept support de la métrique qui est souvent un type,
+    - la métrique (linéaire de canalisation, poteau électrique ou technologie d'équipement...) MAIS le plus souvent cette relation concept suffit à fournir beaucoup / toutes les métriques (par des group by différents en dataviz ex. superset),
+    - puis si nécessaire les dimensions (territoire reg/dep/commune qui est une hiérarchie multiple avec AODE, éventuellement métier ex. sur/sous-types de matériau ; mais tout cela est de l'enrichissement) et leurs grains offerts, y compris temporelle (là il peut y avoir des choses à faire : générer des jours ou avoir préparé un historique en SCD2 / DBT snapshot)    - Les enrichissements sont des suppléments de "normalisation" ou (que/et) des requis de "exploitation".
+- Ils peuvent ainsi être classés dans des dossiers : apcom (normalisation, qui est aussi le dossier du projet), (apcom/)(src ou source/)megalis..., (apcom/)(exploitation/)kpi(/kpi1 ex. d'occupation). Cette classification peut être utilement reprise en préfixe de relation SQL / model DBT :
+  - apcom_(src_)osm_supportaerien(_translated,deduped), apcom_std_supportaerien(_unified,deduped), apcom_(use_)kpi_suivioccupation_day
