@@ -1,6 +1,8 @@
 {#
 Population des communes
 
+Now provided in fdr_std_communes_ods
+
 WARNING made incremental, else DBT cascade drops dependent views created in Superset
 NB. alternatives : put them in DBT (!), enabled=false, or make them as tables (filled by Nifi)
 see https://github.com/dbt-labs/dbt-core/issues/2185
@@ -22,7 +24,11 @@ create view stellio.point_lumineux_indicateurs_habitants_eclairage_public as (
 {{
   config(
     materialized="incremental",
-    unique_key='"Code"'
+    unique_key='"Code"',
+    tags=['incremental'],
+    indexes=[
+        {'columns': ['"Code"']},
+    ],
   )
 }}
 

@@ -12,26 +12,47 @@ Projet des traitements globaux et des données mutualisées entre cas d'usage
     - and dedupe, UDFs, FDR schemas...
 - models :
   - périmètres de compétence géographique des collectivités (une table par cas d'usage, en pratique depuis geopackage ; mais sur FDR_SOURCE_NOM, TODO sur FDR_SOURCE rather than FDR_SOURCE_NOM)
-  - population des communes 2022 (en pratique depuis CSV), aussi davantage de données démographiques de communes mais de 2014
-  - INSEE ODS commune & region (en pratique depuis geojson),
+  - population des communes 2022 (en pratique depuis CSV), en table incrémentale ; aussi davantage de données démographiques de communes mais de 2014
+  - INSEE ODS commune & region (en pratique depuis geojson), enrichies de leur population, en table incrémentale
   - metamodel indicators
 
 ## Rules
 
 ### tables ou vues produites par DBT (dans le schema eaupotable) :
 
+Celles à utiliser de l'extérieur, car stables et performantes, sont :
+- les *_kpi_*,
+- ou pour produire soi-même des KPIs, les *_std_*_enriched (ou _labelled)
+
 - <FDR_USE_CASE>_raw_ : tables importées depuis les ressources CKAN par import.py
-- *_src_*_parsed (vue) : union générique des différentes tables importées de chaque collectivité, avec conversion
-automatique des champs vers leur _definition .sql
-- *_src_*(_translated) (table) : (matérialise en table ou pas) unifie les différentes FDR_SOURCE_NOM (ex. Eau potable :
-_en_service et _abandonnees), corrige (ex. Eau potable : 0-padding des codes) et enrichit localement.
-(des champs techniques : id unique global reproductible...)
-- *_std_* (vue) : simple raccourci vers la précédente
-- => *_std_*_labelled (vue) : l'enrichit des labels des codes
-- _unified : unifié entre différentes FDR_SOURCE_NOM
-- _deduped : dédupliqué
-- _enriched : l'enrichit par exemple des communes, population / démographie...
-- _kpi_ : indicateurs
+- *_def_*_ : définition SQL des modèles de données (colonnes et leurs types), à partir d'exemples statiques...
+- *_src_*_parsed (vue) : vue SQL union générique des différentes tables importées de chaque collectivité,
+  - avec conversion  automatique (des champs vers leur type dans la _definition .sql...).
+  - Cette vue doit est recréée pour inclure tout nouveau  fichier / table importée.
+  - N'y mettre que la macro d'union générique pour faciliter le débogage (de chaque champ converti avec sa version _src...).
+- *_src_*(_translated) (table) : règles de traduction spécifiques depuis une FDR_SOURCE_NOM de modèle de données
+différent vers le modèle normalisé ; TODO NON (matérialise en table ou pas) unifie les différentes FDR_SOURCE_NOM
+(ex. Eau potable : _en_service et _abandonnees), corrige (ex. Eau potable : 0-padding des codes) et enrichit localement
+(calcul des champs génériques), voir plus bas (des champs techniques : id unique global reproductible...)
+- *_std_*(_unified) : unifié entre différentes FDR_SOURCE_NOM.
+  - Il est conseillé qu'elle soit stockée en table, afin d'offre de meilleure performances aux vues qui en dépendent
+(directement ou non, notamment celles de kpis / indicateurs),
+  - et même en incrémental pour des traitements plus rapides même avec de nombreuses collectivités
+participant au cas d'usage, mais aussi qu'ils ne détruisent pas avec elle les vus qui en dépendent (y compris
+indirectement si les vues de ce projet qui ne sont pas inclues traitement DBT, typiquement pour n'inclure que les _src_
+et incrémentales : dbt run --target prod --select apcom.src tag:incremental)
+- *_std_*_dedupe_candidates : doublons trouvés dans les donnée unifiées. Table, conseillé incrémental
+- *_std_*_deduped : vue dédupliquée des données unifiée, en appliquant des règles au précédents candidats.
+- *_std_*_commune_linked : table de la relation n-n ici avec la table commune, bâtie par rapprochement. Table, conseillé incrémental
+- => *_std_*_enriched : vue qui enrichit les données unifiées, par jointure par exemple :
+  - avec les labels de codes de valeur non lisble / sémantiquement significative (*_labelled),
+  - entre les différents types unifiés,
+  - avec les communes (typiquement à l'aide de la table de la relation n-n issue de rapprochements),
+  - avec leur population / démographie...
+- => *_kpi_* : indicateurs sur les données enrichies, sans agrégation (laissée à Superset, conseillé quand possible i.e.
+  dans Superset Pie Chart ou Pivot table)
+- *_kpi_*_commune_owner : indicateurs sur les données enrichies agrégées par exemple par commune et collectivité (data_owner_id).
+Requis pour Superset Bar Chart des différentes valeurs prises par un champ.
 
 ### prefix
 
@@ -47,12 +68,39 @@ version with and without type-specific prefix
 - id : unique id across all data_owner_id and FDR_SOURCE_NOM
 - uuid : reproducible UUID that is generated from id
 
+### Nifi-ization flow / "always on" / on the fly / incremental, et performances :
+
+Comme aussi dit plus haut :
+- d'abord, il faut exécuter les *_src* à chaque changement, afin que leurs vues _parsed incluent le cas échéant les
+nouvelles tables importées de nouveaux fichiers ou leur conversions changées
+- ensuite,
+  - pour la performance des requêtes il faut que les données soient matérialisées en table par la suite,
+  - pour ne pas trop en avoir il faut le faire quand même assez tôt => idéalement au-dessus de _src_*_translated
+donc _std_*_unified
+  - et pour la performance des traitements il faut ne traiter que les données changées, donc sur la dimension temporelle
+en incrémental (PLUS TARD aussi seulement le type de traitement approprié ex. à un FDR_SOURCE_NOM précise,
+mais la performance même à l'échelle des collectivités ne devrait pas le requérir)
+- de plus, pour éviter de détruire les vues externes dépendant des relations DBT, il faut
+  - que TOUTES les tables utilisées de l'extérieur (même indirectement par vue) soient incrémentales
+=> mettre en tables incrémentales les *_std_*_unified, ainsi que les relations contenant les résultats des rapprochements ou doublons trouvés
+NB. cela signifie aussi leur donner une unique_key et rajouter un filtre typiquement sur le champ last_changed pris des métadonnées CKAN
+  - ET que les vues DBT en dépendant (même indirectement par vue) soient exclues du traitement DBT non complet
+=> que ne soient traitées que les _src et les _std qui sont incrémentales
+- pour faire un traitement non complet :
+  - en ayant taggé "incremental" lesdites _std_ qui sont en incrémental,
+  - dbt run --target prod --select apcom.src tag:incremental
+  
 ### Other chosen best practices
 
 deploy :
-first in _test schema (including depending DBT projects) : check visually outputs that are used outside, then switch key
-Superset charts to use them (in another configuration of the same database named "TEST ...")
-if OK, then in prod schema : idem, if problems let / put Superset charts on _test data
+- first in _test schema (including depending DBT projects) :
+- there check visually (ex. in DBeaver CE) outputs that are used outside,
+- then switch key Superset charts to use them
+  - if they don't exist yet, add them in the Datasets page, in another configuration of the same database but with the name "TEST ...")
+  - in the Datasets page, click on the Edit symbol on the right, there in the Colonnes tab click on Synchronizer les colonnes de la source
+  - in each key chart, on the top left click on the three stacked dots near the dataset, there choose Changer le jeu de données
+  - then click on Update chart, and if it displays OK on Enregistrer > Save (Overwrite / Ecrase)
+- if OK, then in prod schema : idem ; if any problems, let / put Superset charts on _test datasets.
 NB. out platform-processing code should also output such a test version in the _test schema
 
 geo :
@@ -70,8 +118,7 @@ __src fields are also provided to help debug conversion (in debug mode),
 but both are skipped if they become too much (ex. twice slower with 350 fields ! there a column oriented DB becomes
 appropriate), typically across several sources so in _unified
 
-Nifi-ization flow / "always on" / on the fly / incremental :
-TODO
+TODO si pbs perfs, mettre champ dans table voire incrémental ex. ods communes population
 
 Preventing DBT from dropping relations on which views created in Superset depend :
 as in fdr_src_population_communes_typed :
@@ -233,6 +280,9 @@ Gotchas - DBT :
 - dbt reuse : macros, packages (get executed first like they would be on their own including .sql files, but can pass different variables through root dbt_project.yml (?) ; TODO Q subpackages ?) https://www.fivetran.com/blog/how-to-re-use-dbt-guiding-rapid-mds-deployments
 - run_query() must be conditioned by execute else Compilation Error 'None' has no attribute 'table' https://docs.getdbt.com/reference/dbt-jinja-functions/execute
 - run_query() of write statements must be followed by a "commit;" ! (or a ";" ?)  https://docs.getdbt.com/reference/dbt-jinja-functions/run_query
+- dbt_utils.pivot() :
+  - if using get_column_values(), do it not on source_model (in kpi often an inefficient view) but on an efficient table (ex. _unified)
+  - NB. outputs a lot of dummt logs ('escape_single_quotes' obsolete macro)
 
 Gotchas - Jinja2 :
 - doc https://jinja.palletsprojects.com/en/3.0.x/templates

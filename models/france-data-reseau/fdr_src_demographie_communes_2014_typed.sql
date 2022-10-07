@@ -1,3 +1,7 @@
+{#
+Provided in fdr_std_communes_ods, don't use it directly
+#}
+
 {{
   config(
     materialized="view",
