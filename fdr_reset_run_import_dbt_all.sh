@@ -18,13 +18,13 @@ FDR_SYNC_POSTGRES_DATABASE=$FDR_SYNC_POSTGRES_DATABASE
 SUDO_USER=SUDO_USER
 fal run --target prod --before
 dbt deps
-dbt seed --full-refresh
+dbt seed --target prod --full-refresh
 dbt run --target prod --full-refresh
 cd ../fdr-eaupotable
 dbt deps
-dbt seed --full-refresh
+dbt seed --target prod --full-refresh
 dbt run --target prod --full-refresh
 cd ../fdr-appuiscommuns
 dbt deps
-dbt seed --full-refresh
+dbt seed --target prod --full-refresh
 dbt run --target prod --full-refresh

@@ -16,6 +16,38 @@ Projet des traitements globaux et des données mutualisées entre cas d'usage
   - INSEE ODS commune & region (en pratique depuis geojson), enrichies de leur population, en table incrémentale
   - metamodel indicators
 
+
+## Production deployment
+
+- on the Nifi server, clone / checkout / pull all DBT projects with their latest version
+- first deploy in _test schemas (including depending DBT projects), by running DBT processing fully
+  (in --full-refresh mode, with --target test), by running manually commands that are in fdr_reset_run_import_dbt_all.sh
+  but with the "test" target
+- there check visually (ex. in DBeaver CE) outputs that are used outside,
+- then switch key Superset charts to use them,
+  - if they don't exist yet, add them in the Datasets page, in another configuration of the same database but with the name "TEST ...")
+  - in the Datasets page, click on the Edit symbol on the right, there in the Colonnes tab click on Synchronizer les colonnes de la source
+  - in each key chart, on the top left click on the three stacked dots near the dataset, there choose Changer le jeu de données
+  - then click on Update chart, and if it displays OK on Enregistrer > Save (Overwrite / Ecrase)
+- then switch external SQL views to use them (*)
+- if OK, then in prod schema : idem ; if any problems, let / put Superset charts and external views on _test datasets.
+  NB. outside platform-processing code (Eau potable, Eclairage public) should also output such a test version in the _test schema
+
+(*) external views to create after deployment :
+
+```sql
+-- as user stellio :
+create view stellio.point_lumineux_indicateurs_habitants_eclairage_public as (
+SELECT count(reference) as nombre_point_lumineux, sum(puissance) as puissance_totale, gestionnaire_title, upper(unaccent("Libellé")) as est_dans_commune_com_nom, "Population municipale 2019"
+from stellio.pointlumineux_eclairage_public
+inner join "france-data-reseau"."fdr_src_population_communes_typed" on "Code" = insee::TEXT
+group by gestionnaire_title, "Libellé", "Population municipale 2019"
+);
+-- test it :
+select * from stellio.point_lumineux_indicateurs_habitants_eclairage_public
+```
+
+
 ## Rules
 
 ### tables ou vues produites par DBT (dans le schema eaupotable) :
@@ -89,19 +121,9 @@ NB. cela signifie aussi leur donner une unique_key et rajouter un filtre typique
 - pour faire un traitement non complet :
   - en ayant taggé "incremental" lesdites _std_ qui sont en incrémental,
   - dbt run --target prod --select fdr.src fdr.perimetre tag:incremental
-  
-### Other chosen best practices
 
-deploy :
-- first in _test schema (including depending DBT projects) :
-- there check visually (ex. in DBeaver CE) outputs that are used outside,
-- then switch key Superset charts to use them
-  - if they don't exist yet, add them in the Datasets page, in another configuration of the same database but with the name "TEST ...")
-  - in the Datasets page, click on the Edit symbol on the right, there in the Colonnes tab click on Synchronizer les colonnes de la source
-  - in each key chart, on the top left click on the three stacked dots near the dataset, there choose Changer le jeu de données
-  - then click on Update chart, and if it displays OK on Enregistrer > Save (Overwrite / Ecrase)
-- if OK, then in prod schema : idem ; if any problems, let / put Superset charts on _test datasets.
-NB. out platform-processing code should also output such a test version in the _test schema
+
+### Other chosen best practices
 
 geo :
 4326 by default (ST_Contains ; so also indexed),
