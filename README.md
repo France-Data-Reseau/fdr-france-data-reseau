@@ -5,16 +5,18 @@ Projet des traitements globaux et des données mutualisées entre cas d'usage
 
 ## Provides
 
-- scripts/ : import.py, publish.py (see there)
-- macros :
-    - setup (create_role_schemas, create_user),
-    - union (of imported sources), conversion (from_csv, to_<type>.sql) and its UDFs, compute generic fields,
-    - and dedupe, UDFs, FDR schemas...
 - models :
-  - périmètres de compétence géographique des collectivités (une table par cas d'usage, en pratique depuis geopackage ; mais sur FDR_SOURCE_NOM, TODO sur FDR_SOURCE rather than FDR_SOURCE_NOM)
-  - population des communes 2022 (en pratique depuis CSV), en table incrémentale ; aussi davantage de données démographiques de communes mais de 2014
-  - INSEE ODS commune & region (en pratique depuis geojson), enrichies de leur population, en table incrémentale
-  - metamodel indicators
+  - *_std_perimetre(_all) : périmètres de compétence géographique des collectivités (une table par cas d'usage, en pratique depuis geopackage ; mais sur FDR_SOURCE_NOM, TODO sur FDR_SOURCE rather than FDR_SOURCE_NOM)
+  - fdr_src_population_communes_typed : population des communes 2022 (en pratique depuis CSV), en table incrémentale ; aussi davantage de données démographiques de communes mais de 2014
+  - fdr_std_communes_ods, fdr_std_regions_ods : INSEE ODS commune & region (en pratique depuis geojson), enrichies de leur population, en table incrémentale
+- governance :
+  - fdr_import_resource : résultat des imports en base par import.py (de geopackage...)
+  - meta_indicators* : metamodel indicators
+- macros :
+  - setup (create_role_schemas, create_user),
+  - union (of imported sources), conversion (from_csv, to_<type>.sql) and its UDFs, compute generic fields,
+  - and dedupe, UDFs, FDR schemas...
+- scripts/ : import.py, publish.py (see there)
 
 
 ## Production deployment
@@ -50,7 +52,23 @@ select * from stellio.point_lumineux_indicateurs_habitants_eclairage_public
 
 ## Rules
 
-### tables ou vues produites par DBT (dans le schema eaupotable) :
+#### Cycle de vie et stabilité des relations / incrémentalisation :
+
+L'incrémentalisation des traitements DBT est mise en place. Elle permet de ne traiter que les nouvelles données
+(selon les métadonnées de date de modification CKAN), ce qui accélère donc les traitements réguliers,
+et les rapproche de l'approche Nifi de traitement en flux plutôt qu'en masse,
+et enfin ne supprime plus à chaque fois les tables ou vues utilisées de l'extérieur
+(ce qui risquerait de supprimer des vues en dépendant).
+Elle est accompagnée de règles claires pour toute relation PostgreSQL gérée par DBT :
+- tout ce qui est traduction des imports d'est que vues (nommées *_src_*), mises à jour à chaque traitement régulier
+- les données unifiées, mais aussi les autres données utilisées de manière externe à savoir les rapprochements (des communes)
+  et déduplications, sont en tables remplies de manière incrémentale, donc stables et jamais recréées (donc jamais supprimées)
+- les données enrichies (les autres *_std_*) et les KPIs (nommées *_kpi_*) sont en vues, et exclues des traitements réguliers,
+  donc jamais supprimées.
+
+### Règles de nommage des tables ou vues produites par DBT selon leur position dans le cycle de traitement :
+
+(dans les schemas "france-data-reseau(_test)", appuiscommuns(_test) eaupotable(_test))
 
 Celles à utiliser de l'extérieur, car stables et performantes, sont :
 - les *_kpi_*,
@@ -100,9 +118,10 @@ version with and without type-specific prefix
 - id : unique id across all data_owner_id and FDR_SOURCE_NOM
 - uuid : reproducible UUID that is generated from id
 
-### Nifi-ization flow / "always on" / on the fly / incremental, et performances :
+### Analyse du cycle de vie et stabilité des relations / incrémentatlisation
 
-Comme aussi dit plus haut :
+(pour Nifi-ization flow / "always on" / on the fly / incremental, et performance)
+
 - d'abord, il faut exécuter les *_src* à chaque changement, afin que leurs vues _parsed incluent le cas échéant les
 nouvelles tables importées de nouveaux fichiers ou leur conversions changées
 - ensuite,
@@ -242,7 +261,9 @@ dbt docs generate
 dbt docs serve # (--port 8001) sert la doc générée sur http://localhost:8000
 
 # au-delà :
-dbt run --target staging --select meta_indicators_by_type # un seul model SQL
+dbt run --target test --select meta_indicators_by_type # un seul model SQL, dans un schema ..._test
+dbt run --target test --select meta_indicators_by_type+ # ce model ET tous ses descendants (FORTEMENT CONSEILLE
+# car souvent pour le rebâtir il est supprimé et donc toutes les vues qui en dépendent aussi !)
 dbt run test --store-failures # les lignes en erreurs des tests sont stockés (dans un schema _dbt_test__audit TODO mieux)
 
 # debug :
