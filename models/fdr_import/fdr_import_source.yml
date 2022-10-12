@@ -4,7 +4,7 @@ sources:
   - name: "fdr_import" # this is the source_name
     description: les tables créées par le système d'import, pour avec fal les alimenter et publier les résultats et erreurs d'import
     # use current schema ex. "france-data-reseau", "france-data-reseau_test" :
-    ## TODO schema: "{{ target.schema }}"
+    ## TODO schema: "france-data-reseau{{ '' if target.name == 'prod' else '_' ~ target.name }}"
     schema: "france-data-reseau"
     #meta: {<dictionary>}
     #tags: [<string>]

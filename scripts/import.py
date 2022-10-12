@@ -75,6 +75,7 @@ dbt run-operation create_fdr_ckan_resource --target prod_pgadmin_stellio
 
 set -a ; PASSWORD="somepassword" ; dbt run-operation create_user --args '{name: "francois@datactivi.st", schemas_string: "appuiscommuns,france-data-reseau"}' --target prod_pgadmin_stellio ; set +a ; echo password : $PASSWORD
 set -a ; PASSWORD=`openssl rand -base64 ${1:-16}` ; dbt run-operation create_user --args '{name: "francois@datactivi.st", schemas_string: "appuiscommuns,france-data-reseau"}' --target prod_pgadmin_stellio ; set +a ; echo password : $PASSWORD
+set -a ; PASSWORD="somepassword" ; dbt run-operation create_user --args '{name: "e.pequignot@altereo.fr", schemas_string: "eaupotable,france-data-reseau"}' --target prod_pgadmin_stellio ; set +a ; echo password : $PASSWORD
 
 
 # import CKAN resource files in DB and create meta / report table :

@@ -41,7 +41,7 @@ fdr_eaupotable:
       schema: eaupotable
       threads: 4
 fdr_bornesderecharge:
-  target: prod
+  target: test
   outputs:
     dev:
       type: postgres
@@ -62,7 +62,7 @@ fdr_bornesderecharge:
       schema: sdirve
       threads: 4
 fdr_francedatareseau:
-  target: prod
+  target: test
   outputs:
     dev:
       type: postgres
