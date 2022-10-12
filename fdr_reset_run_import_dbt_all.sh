@@ -1,6 +1,7 @@
 #!/bin/bash
 cd ../fdr-france-data-reseau
-rm -rf import_state.json
+# NOT doing it because it can take a very long time !!!
+#rm -rf import_state.json
 
 # TOOD better below : same as regular only with --full-refresh
 

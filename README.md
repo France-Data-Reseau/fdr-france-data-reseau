@@ -2,6 +2,12 @@
 
 Projet des traitements globaux et des données mutualisées entre cas d'usage
 
+See Install, build & run and FAQ / Gotchas at the bottom.
+
+Regular (incremental) run :
+```bash
+dbt run --target prod --select fdr.src fdr.perimetre tag:incremental
+```
 
 ## Provides
 
