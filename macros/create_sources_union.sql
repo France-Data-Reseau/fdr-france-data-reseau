@@ -50,23 +50,27 @@ don't all have the same use_case_prefix (so typically "fdr"), to provide the pre
     forced_use_case_prefix=None,
     fdr_import_resource_model=source("fdr_import", "fdr_import_resource")) %}
 {% set sql %}
+
 select
     {% if forced_source_nom %}'{{ forced_source_nom }}'{% else %}min(s."FDR_SOURCE_NOM"){% endif %} as "FDR_SOURCE_NOM",
-    data_owner_dict.has_dictionnaire_champs_valeurs,
+    data_owner_dict.data_owner_dict_schema, data_owner_dict.data_owner_dict_table,
     {% if forced_use_case_prefix %}'{{ forced_use_case_prefix }}'{% else %}min(s."use_case_prefix"){% endif %} as "use_case_prefix",
     ARRAY_AGG("schema") as schemas, ARRAY_AGG("table") as tables
-from "france-data-reseau".fdr_import_resource s left join (
-select sd.data_owner_id, case sd.data_owner_id when null then false else true end as has_dictionnaire_champs_valeurs
+from "france-data-reseau".fdr_import_resource s
+
+left join (
+select min("schema") as data_owner_dict_schema, min("table") as data_owner_dict_table
 from "france-data-reseau".fdr_import_resource sd
-where sd."FDR_SOURCE_NOM" = 'dictionnaire_champs_valeurs'
+where status = 'success' and "FDR_TARGET" <> 'archive'
+and sd."FDR_SOURCE_NOM" = 'dictionnaire_champs_valeurs'
 group by sd.data_owner_id
-) data_owner_dict on s.data_owner_id = data_owner_dict.data_owner_id
---from {{ fdr_import_resource_model }} s -- from eaupot outputs : "datastore"."eaupotable"."eaupot_src_canalisations_en_service" s !?!
+) data_owner_dict on s."FDR_USE_CASE" = data_owner_dict."FDR_USE_CASE" and s.data_owner_id = data_owner_dict.data_owner_id
+
 where status = 'success' and "FDR_TARGET" <> 'archive' -- better than no errors or "FDR_SOURCE_NOM" is not null
 {% if fdr_source_criteria %}
 and {{ fdr_source_criteria }}
 {% endif %}
-group by data_owner_dict.has_dictionnaire_champs_valeurs;
+group by data_owner_dict.data_owner_dict_schema, data_owner_dict.data_owner_dict_table;
 {% endset %}
 {% do log("fdr_sources sql " ~ sql, info=True) %}
 {% set fdr_sources = run_query(sql) %}
@@ -105,13 +109,8 @@ See fdr_source_union_from_name() and fdr_sources()
         forced_source_nom=None, forced_use_case_prefix=None,
         best_geometry_columns=['geom', 'Geom', 'geometrie'], target_geometry_column_name='geometry', srid='2154',
         def_from_source_mapping = fdr_francedatareseau.build_def_from_source_mapping(def_model)) %}
-{% set sql_criteria %}
-{{ source_sql_criteria }}
-and {{ '' if has_dictionnaire_champs_valeurs else 'not' }} has_dictionnaire_champs_valeurs is true
-{% endset %}
-
 {% if execute %} {# else Compilation Error 'None' has no attribute 'table' https://docs.getdbt.com/reference/dbt-jinja-functions/execute #}
-{% set source_rows = fdr_francedatareseau.fdr_sources(sql_criteria,
+{% set source_rows = fdr_francedatareseau.fdr_sources(source_sql_criteria,
     forced_source_nom=forced_source_nom, forced_use_case_prefix=forced_use_case_prefix) %}
 {% if source_rows.rows | length == 0 %}
   {# { exceptions.raise_compiler_error("fdr_source_union ERROR : no table to be unioned found, check parameters of fdr_source_union_from_name()") } #}
@@ -144,6 +143,7 @@ NB. any specific translated_macro must rather be applied after calling this macr
 
 {% if source_row %}
 
+-- get all matching relation names :
 {% do log("fdr_source_union start " ~ source_row ~ context_model.database, info=True) %}
 {% set schemas = source_row['schemas'][2:-2].split('", "') %}{# it's not an array but a string... #}
 {% set tables = source_row['tables'][2:-2].split('", "') %}{# it's not an array but a string... #}
@@ -156,9 +156,23 @@ NB. any specific translated_macro must rather be applied after calling this macr
         {% do source_models.append(source_model) %}
     {% else %}
     {% do log("fdr_source_union can't find relation ! " ~ schemas[loop.index - 1] ~ '.' ~ table) %}
+
+
+
     {% endif %}
 {% endfor %}
 {% do log("fdr_source_union source_models " ~ source_models, info=True) %}
+
+-- get dict if any :
+{% set data_owner_dict_schema = source_row['data_owner_dict_schema'] %}
+{% set data_owner_dict_table = source_row['data_owner_dict_table'] %}
+{% if data_owner_dict_table %}
+    {% set data_owner_dict_sql %}
+    select * from "{{ data_owner_dict_schema }}"."{{ data_owner_dict_table }}"
+    {% endset %}
+    {% set data_owner_dict_rows = run_query(data_owner_dict_sql) %}
+    {% do log("data_owner_dict_rows " ~ data_owner_dict_rows, info=True) %}{# see https://docs.getdbt.com/reference/dbt-jinja-functions/run_query https://agate.readthedocs.io/en/latest/api/table.html #}
+{% endif %}
 
 {% set sql %}
 --create view {{ source_row['schema'] }}."{{ source_row['use_case_prefix'] ~ '_raw_' ~ source_row['FDR_SOURCE_NOM'] }}" as
