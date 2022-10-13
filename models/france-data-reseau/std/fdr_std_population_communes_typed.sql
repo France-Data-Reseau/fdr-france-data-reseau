@@ -1,11 +1,10 @@
 {#
-OBSOLETE TODO rm, already moved to _std_
-
 Population des communes
 
-Now provided in fdr_std_communes_ods
+Now also provided in fdr_std_communes_ods
 
-TODO rename _std_
+TODO remove doc about stellio.point_lumineux_indicateurs_habitants_eclairage_public once Superset uses rather
+the DBT managed one (eclpub_kpi_point_lumineux_indicateurs_habitants)
 
 WARNING made incremental, else DBT cascade drops dependent views created in Superset
 NB. alternatives : put them in DBT (!), enabled=false, or make them as tables (filled by Nifi)
@@ -36,7 +35,7 @@ create view stellio.point_lumineux_indicateurs_habitants_eclairage_public as (
   )
 }}
 
-{% set sourceModel = ref(this.name | replace('_typed', '_parsed')) %}
+{% set sourceModel = ref(this.name | replace('_std_', '_src_') | replace('_typed', '_parsed')) %}
 
 select
     {{ dbt_utils.star(sourceModel, except=[

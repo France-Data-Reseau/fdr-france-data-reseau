@@ -55,6 +55,9 @@ group by gestionnaire_title, "Libellé", "Population municipale 2019"
 select * from stellio.point_lumineux_indicateurs_habitants_eclairage_public
 ```
 
+TODO remove doc about stellio.point_lumineux_indicateurs_habitants_eclairage_public once Superset uses rather
+the DBT managed one (eclpub_kpi_point_lumineux_indicateurs_habitants)
+
 
 ## Rules
 
