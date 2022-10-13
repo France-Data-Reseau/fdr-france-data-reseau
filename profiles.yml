@@ -10,6 +10,15 @@ fdr_appuiscommuns:
       dbname: fdr
       schema: dbt_fdr
       threads: 4
+    test:
+      type: postgres
+      host: "{{ env_var('FDR_SYNC_POSTGRES_HOST') }}"
+      user: "{{ env_var('FDR_SYNC_POSTGRES_USER') }}"
+      password: "{{ env_var('FDR_SYNC_POSTGRES_PASSWORD') }}"
+      port: "{{ env_var('FDR_SYNC_POSTGRES_PORT') | as_number }}"
+      dbname: "{{ env_var('FDR_SYNC_POSTGRES_DATABASE') }}"
+      schema: appuiscommuns_test
+      threads: 4
     prod:
       type: postgres
       host: "{{ env_var('FDR_SYNC_POSTGRES_HOST') }}"
@@ -30,6 +39,15 @@ fdr_eaupotable:
       port: 5432
       dbname: fdr
       schema: dbt_fdr
+      threads: 4
+    test:
+      type: postgres
+      host: "{{ env_var('FDR_SYNC_POSTGRES_HOST') }}"
+      user: "{{ env_var('FDR_SYNC_POSTGRES_USER') }}"
+      password: "{{ env_var('FDR_SYNC_POSTGRES_PASSWORD') }}"
+      port: "{{ env_var('FDR_SYNC_POSTGRES_PORT') | as_number }}"
+      dbname: "{{ env_var('FDR_SYNC_POSTGRES_DATABASE') }}"
+      schema: eaupotable_test
       threads: 4
     prod:
       type: postgres
@@ -52,6 +70,15 @@ fdr_bornesderecharge:
       dbname: fdr
       schema: dbt_fdr
       threads: 4
+    test:
+      type: postgres
+      host: "{{ env_var('FDR_SYNC_POSTGRES_HOST') }}"
+      user: "{{ env_var('FDR_SYNC_POSTGRES_USER') }}"
+      password: "{{ env_var('FDR_SYNC_POSTGRES_PASSWORD') }}"
+      port: "{{ env_var('FDR_SYNC_POSTGRES_PORT') | as_number }}"
+      dbname: "{{ env_var('FDR_SYNC_POSTGRES_DATABASE') }}"
+      schema: sdirve_test
+      threads: 4
     prod:
       type: postgres
       host: "{{ env_var('FDR_SYNC_POSTGRES_HOST') }}"
@@ -72,6 +99,15 @@ fdr_francedatareseau:
       port: 5432
       dbname: fdr
       schema: dbt_fdr
+      threads: 4
+    test:
+      type: postgres
+      host: "{{ env_var('FDR_SYNC_POSTGRES_HOST') }}"
+      user: "{{ env_var('FDR_SYNC_POSTGRES_USER') }}"
+      password: "{{ env_var('FDR_SYNC_POSTGRES_PASSWORD') }}"
+      port: "{{ env_var('FDR_SYNC_POSTGRES_PORT') | as_number }}"
+      dbname: "{{ env_var('FDR_SYNC_POSTGRES_DATABASE') }}"
+      schema: "france-data-reseau_test"
       threads: 4
     prod:
       type: postgres
