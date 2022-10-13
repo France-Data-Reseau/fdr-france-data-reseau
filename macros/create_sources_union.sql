@@ -200,13 +200,14 @@ NB. any specific translated_macro must rather be applied after calling this macr
 
 {% set fdr_src_perimetre_all_parsed_exists = adapter.get_relation(database = context_model.database,
     schema = 'france-data-reseau', identifier = 'fdr_src_perimetre_all_parsed') %}
-{% do log("fdr_source_union def_from_source_mapping " ~ def_from_source_mapping
-    ~ " fdr_src_perimetre_all_parsed_exists " ~ ('yes' if fdr_src_perimetre_all_parsed_exists else 'no'), info=True) %}
 {% set defined_columns_only = not not def_model %}
 {% for cas_usage_source_table in cas_usage_source_tables %}
     -- build mapping, using data dict conf if any :
     {% set def_from_source_mapping = fdr_francedatareseau.build_def_from_source_mapping(def_model,
-        data_dict_column_mappings=cas_usage_source_table.data_dict_column_mappings if data_dict_column_mappings in cas_usage_source_table else None) %}
+        data_dict_column_mappings=cas_usage_source_table.data_dict_column_mappings if 'data_dict_column_mappings' in cas_usage_source_table else None) %}
+    {% do log("fdr_source_union def_from_source_mapping " ~ def_from_source_mapping
+        ~ " for table " ~ cas_usage_source_table.table, info=True) %}
+
     (
     with lenient_parsed as (
     {{ fdr_francedatareseau.from_csv(cas_usage_source_table.source_model, column_models=[def_model] if def_model else [],
