@@ -8,7 +8,10 @@ embarquées dans DBT (à l'exclusion de _exemple(_stg) car il créé préciséme
 
 Fonctionnalités :
 - le def_from_source_mapping fourni permet de faire correspondre une colonne cible à une colonne nommée
-différemment dans la source, où elle est cherchée en préservant la casse, ou sinon en casse basse
+différemment dans la source, où elle est cherchée en préservant la casse, ou sinon en casse basse,
+et s'il y a un dictionnaire de données dans son renommage correspondant
+- si les informations d'un dictionnaire de données sont fournies, réalise la traduction des codes correspondante,
+par jointures
 - tous les types de champ cible sont parsés de manière souple / "lenient" depuis du textuel ou leurs formats compatibles
 - champs cible géo : détectés par la geo_pattern fournie ET le type cible (DBT 'USER-DEFINED'). NB. pas possible de se
 contenter de la geo_pattern car certains ne sont pas parsés (apcom_birdz avec french floating point, centre des
@@ -45,7 +48,9 @@ typed as geometry in def models  (so also allows to rename / map it)
 a lot of formats ex. geopackage, Shapefile don't have a name for it, so its name is created by the import tool ex. ogr2ogr)
 - srid : geo srid
 - uuid_pattern
-- def_from_source_mapping : allows ex. to add prefixes
+- def_from_source_mapping : allows ex. to add prefixes and rename according to the data dictionary
+- data_dict_schema_table : if any, allows to join to it to translated codes accordingly
+- data_dict_code_columns : list of def colummn names ; if any, tells on which fields to join to translated codes accordingly
 - debug : also adds the source field with the __src suffix
 #}
 
@@ -54,7 +59,8 @@ a lot of formats ex. geopackage, Shapefile don't have a name for it, so its name
     date_formats=['YYYY-MM-DDTHH24:mi:ss.SSS', 'YYYY/MM/DD HH24:mi:ss.SSS', 'DD/MM/YYYY HH24:mi:ss.SSS'],
     geo_pattern=".*geo.*", wkt_rather_than_geojson=false, best_geometry_columns=['geom', 'Geom', 'geometrie'],
     target_geometry_column_name='geometry', srid='2154', fdr_src_perimetre_all_parsed_exists=false,
-    uuid_pattern="_Id|_Ref", def_from_source_mapping={}, debug=true) %}
+    uuid_pattern="_Id|_Ref", def_from_source_mapping={},
+    data_dict_schema_table=None, data_dict_code_columns=[], debug=true) %}
 
 {% set no_column_models = column_models | length == 0 %}
 {% set source = source if source else ref(model.name | replace('_stg', '')) %}
@@ -117,7 +123,7 @@ select
         {# TODO (but not for parsing from table) first of column_models must provide the type and therefore by 0-lined NOO ONLY IN dbt_utils.union()
         (required anyway to define EXACTLY the column type, so better than doing it in parsing macros, or here) #}
         {% if source_col_name not in col_names %}
-          NULL::{% if def_col.is_number() %}numeric{% elif modules.re.match(geo_pattern, def_col.name, modules.re.IGNORECASE) %}geometry{% elif def_col.data_type == 'date' or def_col.data_type == 'timestamp' or def_col.data_type == 'timestamp with time zone' %}date{% elif def_col.data_type == 'boolean' %}boolean{% else %}text{% endif %} as {{ adapter.quote(def_col.name) }}
+          NULL::{% if def_col.is_number() %}numeric{#% NOO else eaupotcan_qualiteGeolocalisation ! elif modules.re.match(geo_pattern, def_col.name, modules.re.IGNORECASE) %}geometry#}{% elif def_col.data_type == 'date' or def_col.data_type == 'timestamp' or def_col.data_type == 'timestamp with time zone' %}date{% elif def_col.data_type == 'boolean' %}boolean{% else %}text{% endif %} as {{ adapter.quote(def_col.name) }}
           {# NULL as {{ adapter.quote(def_col.name) }} #}
           , NULL as {{ adapter.quote(def_col.name + '__src') }}
         {% else %}
@@ -139,7 +145,7 @@ select
           {{ fdr_francedatareseau.to_numeric_or_null(source_col.name, source) }} as {{ adapter.quote(def_col.name) }}
           -- {# "{{ schema }}".fdr_francedatareseau.to_numeric_or_null({{ source }}.{{ adapter.quote(def_col.name) }}) as {{ adapter.quote(def_col.name) }} #} -- or merely ::numeric ?
           --{{ source }}.{{ adapter.quote(def_col.name) }}::numeric -- NOT to_numeric_or_null else No function matches the given name and argument types.
-        {% elif def_col.data_type == 'date' or def_col.data_type == 'timestamp' or def_col.data_type == 'timestamp with time zone' %}
+        {% elif def_col.data_type == 'date' or def_col.data_type == 'timestamp' or def_col.data_type == 'timestamp with time zone' %}-- date
           "{{ schema }}".to_date_or_null({{ source }}.{{ adapter.quote(source_col.name) }}::text, {% for fmt in date_formats %}'{{ fmt }}'::text{% if not loop.last %}, {% endif %}{% endfor %}) as {{ adapter.quote(def_col.name) }}
         {% elif def_col.data_type == 'boolean' %}
           {{ fdr_francedatareseau.to_boolean_or_null(source_col.name, source) }} as {{ adapter.quote(def_col.name) }}
@@ -164,7 +170,24 @@ select
     from {{ source }}
 
 )
-select converted.*
+select
+{% if data_dict_schema_table and defined_columns_only %}
+    -- translate codes according to data dictionary :
+    {% for def_col in def_cols %}
+        {% if modules.re.sub('.*_', '', def_col.name) in data_dict_code_columns %}
+            "dict_{{ def_col.name }}"."Code" as {{ adapter.quote(def_col.name) }} -- TODO or keep orig value : coalesce(, x ?)
+        {% else %}
+            converted.{{ adapter.quote(def_col.name) }}
+        {% endif %}
+        {% if debug %} -- TODO only if not ::text'd
+          , converted.{{ adapter.quote(def_col.name + '__src') }}
+        {% endif %}
+        {% if not loop.last %},{% endif %}
+    {% endfor %}
+
+{% else %}
+converted.*
+{% endif %}
 {# NOO  % if vars.chosen_geometry_column_name %}
 , ST_Transform("{{ vars.chosen_geometry_column_name }}", 4326) as geometry_4326,
 ST_Transform("{{ vars.chosen_geometry_column_name }}", 2154) as geometry_2154
@@ -172,10 +195,25 @@ ST_Transform("{{ vars.chosen_geometry_column_name }}", 2154) as geometry_2154
 -- TOO LONG 4s => 24s...
 -- adding perimeter owner : {{ chosen_geometry_column_name }} {{ fdr_src_perimetre_all_parsed_exists }}
 --, {% if vars.chosen_geometry_column_name and fdr_src_perimetre_all_parsed_exists %}p.data_owner_id{% else %}NULL{% endif %} as perimetre_data_owner_id
+
+
 from converted
 --{% if vars.chosen_geometry_column_name and fdr_src_perimetre_all_parsed_exists %}
 --, "france-data-reseau".fdr_src_perimetre_all_parsed p
 --where ST_Contains(p.geom, {{ adapter.quote(vars.chosen_geometry_column_name) }})
+
+{% if data_dict_schema_table %}
+    -- joins to translate codes according to data dictionary :
+    {% for def_col in def_cols %}
+        {% if modules.re.sub('.*_', '', def_col.name) in data_dict_code_columns %}
+            left join {{ data_dict_schema_table }} "dict_{{ def_col.name }}"
+                on converted."{{ def_col.name }}" = "dict_{{ def_col.name }}"."Valeur"
+                -- TODO TODO and "dict_{{ def_col.name }}"."Champs" = '{{ def_col.name | replace('eaupotcan_', '') }}'
+                and "dict_{{ def_col.name }}"."Valeur" is not null and "dict_{{ def_col.name }}"."Code" is not null -- ?
+        {% endif %}
+    {% endfor %}
+{% endif %}
+
 {% endif %}
 
 {% endmacro %}
