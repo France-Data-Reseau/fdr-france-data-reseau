@@ -20,6 +20,7 @@ Fields : those of ref'd models plus
     indexes=[
         {'columns': ['com_code']},
         {'columns': ['geometry'], 'type': 'gist'},
+        {'columns': ['geometry_shape_2154'], 'type': 'gist'},
     ],
   )
 }}
