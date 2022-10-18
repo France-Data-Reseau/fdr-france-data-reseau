@@ -17,7 +17,6 @@ SUDO_USER=SUDO_USER
 fal run --target prod --before
 dbt run --target prod --select fdr.src fdr.perimetre.src tag:incremental
 cd ../fdr-eaupotable
-# TODO dbt run --target prod --select eaupot.src tag:incremental
-dbt run --target prod
+dbt run --target prod --select eaupot.src tag:incremental
 cd ../fdr-appuiscommuns
 dbt run --target prod --select apcom.src tag:incremental
