@@ -112,6 +112,11 @@ dbt run --target test --select eaupot_src_canalisations_en_service_parsed
 import os
 from ckanapi import RemoteCKAN, NotAuthorized
 
+# in seconds
+DOWNLOAD_RECEIVE_TIMEOUT = 1700
+# in bytes
+DOWNLOAD_MAX_FILE_SIZE = 1000000000
+# in bytes
 PANDAS_MAX_FILE_SIZE = 1000000000
 
 # CKAN configuration (to download files) :
@@ -189,6 +194,7 @@ import sys
 import json
 import os, subprocess
 import requests
+import time
 import re
 from pathlib import Path
 from datetime import datetime
@@ -304,9 +310,19 @@ def download_ckan_resource(resource):
     headers = {
         "Authorization": fdrckan_apikey
     }
-    resp = requests.get(url, headers=headers)
+    resp = requests.get(url, headers=headers, stream=True)
+
+    size = 0
+    start = time.time()
+
     with open(source_file_path, "wb") as f:
-        f.write(resp.content)
+        for chunk in resp.iter_content(1048576):
+            if time.time() - start > DOWNLOAD_RECEIVE_TIMEOUT:
+                raise ValueError('download_ckan_resource aborted, too long')
+            size += len(chunk)
+            if size > DOWNLOAD_MAX_FILE_SIZE:
+                raise ValueError('download_ckan_resource aborted, too big')
+            f.write(chunk)
 
     set_changed(resource, step)
     return source_file_path
