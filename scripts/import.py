@@ -112,6 +112,8 @@ dbt run --target test --select eaupot_src_canalisations_en_service_parsed
 import os
 from ckanapi import RemoteCKAN, NotAuthorized
 
+PANDAS_MAX_FILE_SIZE = 1000000000
+
 # CKAN configuration (to download files) :
 ua = 'ckanapifdr/1.0 (+https://ckan.francedatareseau.fr)'
 fdrckan_url = os.getenv("FDR_SYNC_CKAN_URL")
@@ -375,6 +377,8 @@ def ogr2ogr(source_file, schema, table, resource, PGCLIENTENCODING=None):
 
 def csv_to_dbt_table(source_file_path, schema, table, resource):
     try:
+        if os.path.getsize(source_file_path) > PANDAS_MAX_FILE_SIZE:
+            raise Exception("csv_to_dbt_table : aborting because file " + source_file_path + " bigger than max " + str(PANDAS_MAX_FILE_SIZE))
         # infer separator, and parse all fields as string see https://stackoverflow.com/questions/16988526/pandas-reading-csv-as-string-type
         parsed_file_df = pandas.read_csv(source_file_path, sep = None, dtype=str)
         # sheet_name, true/false_values, na_values/filter, dates, decimal : '.'...
@@ -387,6 +391,8 @@ def csv_to_dbt_table(source_file_path, schema, table, resource):
 
 def excel_to_dbt_table(source_file_path, schema, table, resource):
     try:
+        if os.path.getsize(source_file_path) > PANDAS_MAX_FILE_SIZE:
+            raise Exception("csv_to_dbt_table : aborting because file " + source_file_path + " bigger than max " + str(PANDAS_MAX_FILE_SIZE))
         # infer separator, and parse all fields as string see https://stackoverflow.com/questions/16988526/pandas-reading-csv-as-string-type
         parsed_file_df = pandas.read_excel(source_file_path, dtype=str)
         # sheet_name, true/false_values, na_values/filter, dates, decimal : '.'...

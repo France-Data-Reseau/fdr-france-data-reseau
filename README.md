@@ -21,7 +21,7 @@ dbt run --target prod --select fdr.src fdr.perimetre.src tag:incremental
 - macros :
   - setup (create_role_schemas, create_user),
   - union (of imported sources), conversion (from_csv, to_<type>.sql) and its UDFs, compute generic fields,
-  - generic commune linking, identity dedupe
+  - generic commune n-n linking, identity dedupe
   - create_views_per_data_owner (not used)
   - and UDFs, FDR schemas...
 - scripts/ : import.py, publish.py (see there)
