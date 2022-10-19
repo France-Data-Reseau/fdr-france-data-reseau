@@ -253,7 +253,7 @@ def compute_has_changed(resource, step='default'):
     # TODO datetime.utcfromtimestamp(timestamp1)
     last_changed_string = build_last_changed_string(resource)
     resource_key = build_resource_key(resource, step)
-    has_stayed_same = resource_key in import_state and last_changed_string and import_state[resource_key] == last_changed_string
+    has_stayed_same = resource_key in import_state and last_changed_string and import_state[resource_key]['timestamp'] == last_changed_string
     if has_stayed_same:
         #print('import not changed, skip in step', step, resource_key, import_state.get(resource_key), last_changed_string)
         pass
@@ -538,11 +538,16 @@ def import_resource(resource, import_state):
 
     status = "error" if len([m for m in messages if m['status'] == 'error']) != 0 else "skipped" if len([m for m in messages if m['status'] == 'skipped']) != 0 else "success"
 
+    last_changed = build_last_changed_string(resource) # datetime.strptime(build_last_changed_string(resource), '%Y-%m-%dT%H:%M:%S') # ex. '2022-09-07T11:12:54'
+    added_string = resource['ds_metadata_created'].isoformat() if last_changed else None
+    # because else NotImplementedError: Don't know how to literal-quote value numpy.datetime
+    # https://stackoverflow.com/questions/49490623/datetime-filtering-with-sqlalchemy-isnt-working
+    removed_default = '2100-01-01T00:00:00' # datetime.strptime('2100-01-01T00:00:00', '%Y-%m-%dT%H:%M:%S') # to type SQL column
     return {
         "FDR_CAS_USAGE" : FDR_CAS_USAGE, "FDR_ROLE" : FDR_ROLE, "FDR_SOURCE_NOM" : FDR_SOURCE_NOM, "FDR_TARGET" : FDR_TARGET,
-        "status" : status, "start" : resource_start, "end" : datetime.now().isoformat(),
+        "status" : status, "start" : resource_start, "imported" : datetime.now().isoformat(),
         "component": "import.py", "step": step, # "subcomponent" or "step" ?
-        "last_changed": build_last_changed_string(resource),
+        "last_changed" : last_changed, "added" : added_string, "removed" : removed_default, # not 'created' to allow patching the original resource file
         "resource_id" : resource['id'], "resource_name" : resource['name'],
         "dataset_id" : resource['ds_id'], "dataset_name" : resource['ds_name'], "dataset_title" : resource['ds_title'],
         "org_id" : resource['org_id'], "org_name" : resource['org_name'], "org_title" : resource['org_title'], # label

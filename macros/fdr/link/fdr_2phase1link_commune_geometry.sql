@@ -37,7 +37,7 @@ with link_candidates as (
     --and 1 = (1+1) -- test incremental without table already existing
     {% if is_incremental() %}
       --and {{ translated_source }}.last_changed <= '2022-09-30T15:30:28' -- test incremental in the middle, or change the later_last_changed column
-      and {{ translated_source }}.last_changed > (select coalesce(max(max_translated.translated_last_changed), '1970-01-01T00:00:00') from {{ this }} max_translated where max_translated."com_name" is NULL)
+      and {{ translated_source }}.last_changed > (select coalesce(max(max_translated.translated_last_changed), to_timestamp('1970-01-01T00:00:00', 'YYYY-MM-DDTHH24:MI:SS')) from {{ this }} max_translated where max_translated."com_name" is NULL)
     {% endif %}
 
     --having count(*) > 1 -- TODO idea : store only rare duplicates

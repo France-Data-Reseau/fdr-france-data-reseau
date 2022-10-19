@@ -2,9 +2,10 @@
 Lists import fields (from fdr_resource_import) added by the source union macros().
 Useful when SELECTing all fields from several relations that all have these import fields ;
 in this case, keep them on the deepest / most specific relation (and elsewhere "except" them using dbt_utils.star())
+*ed fields are timestamp
 #}
 {% macro list_import_fields() %}
-{{ return(["import_table", "last_changed", "data_owner_id", "data_owner_label", "FDR_CAS_USAGE", "FDR_ROLE", "FDR_SOURCE_NOM", "FDR_TARGET"]) }}
+{{ return(["import_table", "last_changed", "added", "removed", "imported", "data_owner_id", "data_owner_label", "FDR_CAS_USAGE", "FDR_ROLE", "FDR_SOURCE_NOM", "FDR_TARGET"]) }}
 {% endmacro %}
 
 {#

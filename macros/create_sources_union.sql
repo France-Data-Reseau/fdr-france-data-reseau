@@ -170,7 +170,7 @@ NB. any specific translated_macro must rather be applied after calling this macr
     {% if source_model %}
         {% do cas_usage_source_table.update({ 'source_model' : source_model }) %}
     {% else %}
-    {% do log("fdr_source_union can't find relation ! " ~ cas_usage_source_table) %}
+        {% do log("fdr_source_union can't find relation ! " ~ cas_usage_source_table) %}
     {% endif %}
 
     -- get 2 confs from dict if any :
@@ -222,7 +222,11 @@ NB. any specific translated_macro must rather be applied after calling this macr
     )
     -- select '"{{ context_model.database }}"."{{ cas_usage_source_tables.schema }}"."{{ cas_usage_source_table.source_model }}"'::text as src_relation, lenient_parsed.* from lenient_parsed
     select '{{ source_model }}'::text as import_table, lenient_parsed.*,
-        s.last_changed, s."data_owner_id", s.org_name as data_owner_label, -- TODO org_title
+        to_timestamp(s.last_changed, 'YYYY-MM-DDTHH24:MI:SS') as last_changed,
+        to_timestamp(s.added, 'YYYY-MM-DDTHH24:MI:SS') as added,
+        to_timestamp(s.removed, 'YYYY-MM-DDTHH24:MI:SS') as removed,
+        to_timestamp(s.imported, 'YYYY-MM-DDTHH24:MI:SS') as imported,
+        s."data_owner_id", s.org_name as data_owner_label, -- TODO org_title
         s."FDR_CAS_USAGE", s."FDR_ROLE", s."FDR_SOURCE_NOM", s."FDR_TARGET"
     from lenient_parsed
         left join "france-data-reseau".fdr_import_resource s
@@ -243,8 +247,10 @@ NB. any specific translated_macro must rather be applied after calling this macr
     {{ exceptions.raise_compiler_error("ERROR fdr_source_union_from_import_row : no table to be unioned found, and no def_model so can't generate empty table instead") }}
 {% endif %}
 {% set sql %}
-select '' as import_table, *,
-    NULL as last_changed, NULL as "data_owner_id", NULL as data_owner_label, -- TODO org_title
+select '' as import_table, -- TODO use list_import_fields()
+    *,
+    NULL::timestamp as last_changed, NULL::timestamp as added, NULL::timestamp as removed, NULL::timestamp as imported,
+    NULL as "data_owner_id", NULL as data_owner_label, -- TODO org_title
     NULL as "FDR_CAS_USAGE", NULL as "FDR_ROLE", NULL as "FDR_SOURCE_NOM", NULL as "FDR_TARGET"
 from {{ def_model }}
 {% endset %}
