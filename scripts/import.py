@@ -318,11 +318,12 @@ def download_ckan_resource(resource):
     # use resource id in name else may conflict ex. data.csv :
     source_file_path = os.path.sep.join([cache_dir, 'ckan', resource['org_name'], resource['ds_name'], resource['id'] + '.' + resource_file_extension])
     if not compute_has_changed(resource, step):
-        # skip download
-        if import_state[resource_key]['status'] == 'success':
+        # skip download (and support old import state format)
+        resource_key = build_resource_key(resource, step)
+        if 'status' not in import_state[resource_key] or import_state[resource_key]['status'] == 'success':
             return source_file_path
         else:
-            raise Exception('download_ckan_resource error : ' + import_state[resource_key]['status'])
+            raise Exception('! download_ckan_resource error : ' + import_state[resource_key]['status'])
 
     Path(source_file_path).parents[0].mkdir(parents=True, exist_ok=True)
     internal_url = '/'.join([fdrckan_url, 'dataset', resource['ds_id'], 'resource', resource['id'], 'download', resource['url']])
