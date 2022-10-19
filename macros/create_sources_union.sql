@@ -179,7 +179,8 @@ NB. any specific translated_macro must rather be applied after calling this macr
             ~ cas_usage_source_table.data_owner_dict_schema ~ '"."' ~ cas_usage_source_table.data_owner_dict_table ~ '"'
             ~ ' t where t."Valeur" is not null and t."Code" is null and t."FDR_SOURCE_NOM"='
             ~ "'" ~ cas_usage_source_table.FDR_SOURCE_NOM ~ "'") %}
-        {% if data_dict_column_mapping_rows and data_dict_column_mapping_rows | length != 0 %}
+        {% if data_dict_column_mapping_rows and (data_dict_column_mapping_rows | length != 0)
+            and 'res' in data_dict_column_mapping_rows[0] %}
             {% do cas_usage_source_table.update({ 'data_dict_column_mappings' : fromjson(data_dict_column_mapping_rows[0]['res']) }) %}
         {% endif %}
         {% set data_dict_code_columns_rows = run_query('select json_agg(distinct "Champs") res from "'
