@@ -15,7 +15,7 @@ echo check :
 FDR_SYNC_POSTGRES_DATABASE=$FDR_SYNC_POSTGRES_DATABASE
 SUDO_USER=SUDO_USER
 fal run --target prod --before
-dbt run --target prod --select fdr.src fdr.perimetre.src tag:incremental
+dbt run --target prod --select france-data-reseau.src perimetre.src tag:incremental
 cd ../fdr-eaupotable
 dbt run --target prod --select eaupot.src tag:incremental
 cd ../fdr-appuiscommuns

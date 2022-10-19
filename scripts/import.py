@@ -280,7 +280,7 @@ def compute_has_changed(resource, step='default'):
     return not has_stayed_same
 
 def set_changed(resource, step='default', status='success'):
-    #print('set_changed', import_state)
+    #print('set_changed', import_state, step, status)
     last_changed_string = build_last_changed_string(resource)
     resource_key = build_resource_key(resource, step)
     import_state[resource_key] = { 'timestamp' : last_changed_string, 'status' : status }
@@ -319,7 +319,10 @@ def download_ckan_resource(resource):
     source_file_path = os.path.sep.join([cache_dir, 'ckan', resource['org_name'], resource['ds_name'], resource['id'] + '.' + resource_file_extension])
     if not compute_has_changed(resource, step):
         # skip download
-        return source_file_path
+        if import_state[resource_key]['status'] == 'success':
+            return source_file_path
+        else:
+            raise Exception('download_ckan_resource error : ' + import_state[resource_key]['status'])
 
     Path(source_file_path).parents[0].mkdir(parents=True, exist_ok=True)
     internal_url = '/'.join([fdrckan_url, 'dataset', resource['ds_id'], 'resource', resource['id'], 'download', resource['url']])
@@ -345,7 +348,8 @@ def download_ckan_resource(resource):
                 f.write(chunk)
         set_changed(resource, step)
     except ValueError as ve:
-        set_changed(resource, step, 'error')
+        set_changed(resource, step, ve.args[0]) # error message as error-type status https://stackoverflow.com/questions/4097461/printing-out-actual-error-message-for-valueerror
+        raise ve # to prevent pandas insert
 
     return source_file_path
 
@@ -606,7 +610,7 @@ def import_resources(schema_suffix = ''):
         if resource_status_line is not None:
             resource_status_lines.append(resource_status_line)
             if resource_status_line['status'] == 'error':
-                print('error, status :', resource_status_line)
+                print('import_resources error, status :', resource_status_line)
 
     resource_status_df = pandas.DataFrame(resource_status_lines)
     print('import_resources resource_status_df', resource_status_df.sort_values(by=['status']))
