@@ -34,6 +34,11 @@ TODO :
 - support du "dictionnaire de données" utilisé par Eau potable par mapping avancé et traduction des codes guidée ?
 - exécution plutôt une fois par projet DBT cas d'usage ? ou au contraire plus simplement même de leurs traitements en une seule fois dans un projet DBT qui dépend de tous ?
 
+Configuration :
+- auto aborts :
+  - download if takes more than 1700s (because 30min timeout, from Nifi ?),
+  - download and pandas-based import if size > 1 000 000 000 o (because ex. parcelles foncières 4,2go makes RAM explode beyond 10go)
+
 OBSOLETE introspect CKAN API to :
 - build list of datastore-imported files (ex. FDR_ROLE=source, format=gepackage) to make visible as views using dbt on-run-start macro
 - download other files that have to be imported, and import them :
@@ -198,6 +203,11 @@ import time
 import re
 from pathlib import Path
 from datetime import datetime
+# NOT USED for now convert in SQL view (for now in source union macro, later in fdr_import_resource append view)
+# rather than import this new package
+##import sqlalchemy_utils.types.arrow # else with mere datetime error :
+# NotImplementedError: Don't know how to literal-quote value numpy.datetime64
+# see https://github.com/bbelyeu/Flask-SQLAlchemy-Caching/issues/2
 import pandas
 
 
@@ -242,12 +252,20 @@ import_state_file = cache_dir + '/import_state.json'
 
 
 
+# load import state :
 try:
     with open(import_state_file, "r") as f:
         import_state = json.load(f)
+        for resource_key in import_state:
+            state_value = import_state[resource_key]
+            # read also from old format :
+            if isinstance(state_value, str):
+                import_state[resource_key] = { 'timestamp' : state_value }
+
 except FileNotFoundError as e: # if JSONDecodeError, rather remove file
     print('import : ', import_state_file, 'not found, using empty state and importing all resources')
     import_state = {}
+
 
 def compute_has_changed(resource, step='default'):
     # TODO datetime.utcfromtimestamp(timestamp1)
@@ -261,13 +279,14 @@ def compute_has_changed(resource, step='default'):
         print('import changed in step', step, resource, resource_key, import_state.get(resource_key), last_changed_string)
     return not has_stayed_same
 
-def set_changed(resource, step='default'):
+def set_changed(resource, step='default', status='success'):
+    #print('set_changed', import_state)
     last_changed_string = build_last_changed_string(resource)
     resource_key = build_resource_key(resource, step)
-    import_state[resource_key] = last_changed_string
+    import_state[resource_key] = { 'timestamp' : last_changed_string, 'status' : status }
     with open(import_state_file, 'w') as f:
         json.dump(import_state, f, indent=4)
-    print('import set_changed', resource_key, last_changed_string)
+    print('import set_changed', resource_key, last_changed_string, status)
 
 def build_resource_key(resource, step='default'):
     resource_key = '/'.join([resource['org_name'], resource['ds_name'], resource['name'], resource['id'], step, config.target_name])
@@ -306,7 +325,7 @@ def download_ckan_resource(resource):
     internal_url = '/'.join([fdrckan_url, 'dataset', resource['ds_id'], 'resource', resource['id'], 'download', resource['url']])
     url = resource['url'] if is_external_resource else internal_url
     # replaced by ds_metadata_modified otherwise Nifi QueryDatabaseTable can't detect it !
-    print('import download_ckan_resource', url, source_file_path, resource, is_external_resource, import_state.get(url))
+    print('import download_ckan_resource', url, source_file_path, resource, is_external_resource)
     headers = {
         "Authorization": fdrckan_apikey
     }
@@ -315,16 +334,19 @@ def download_ckan_resource(resource):
     size = 0
     start = time.time()
 
-    with open(source_file_path, "wb") as f:
-        for chunk in resp.iter_content(1048576):
-            if time.time() - start > DOWNLOAD_RECEIVE_TIMEOUT:
-                raise ValueError('download_ckan_resource aborted, too long')
-            size += len(chunk)
-            if size > DOWNLOAD_MAX_FILE_SIZE:
-                raise ValueError('download_ckan_resource aborted, too big')
-            f.write(chunk)
+    try:
+        with open(source_file_path, "wb") as f:
+            for chunk in resp.iter_content(1048576):
+                if time.time() - start > DOWNLOAD_RECEIVE_TIMEOUT:
+                    raise ValueError('download_ckan_resource aborted, too long')
+                size += len(chunk)
+                if size > DOWNLOAD_MAX_FILE_SIZE:
+                    raise ValueError('download_ckan_resource aborted, too big')
+                f.write(chunk)
+        set_changed(resource, step)
+    except ValueError as ve:
+        set_changed(resource, step, 'error')
 
-    set_changed(resource, step)
     return source_file_path
 
 
