@@ -107,6 +107,7 @@ a lot of formats ex. geopackage, Shapefile don't have a name for it, so its name
 -- complete_columns_with_null : {{ complete_columns_with_null }} ; col_names : {{ col_names }}
 -- no_column_models : {{ no_column_models }} ; defined_columns_only : {{ defined_columns_only }} ; def_cols : {{ def_cols }}
 -- def_from_source_mapping : {{ def_from_source_mapping }}
+-- data_dict_schema_table : {{ data_dict_schema_table }} ; data_dict_code_columns : {{ data_dict_code_columns }}
 -- cols : {{ cols }}
 -- geo_pattern : {{ geo_pattern }} ; best_geometry_columns : {{ best_geometry_columns }} => {{ best_geometry_col_name }} ; target_geometry_column_name : {{ target_geometry_column_name }}
 with converted as (

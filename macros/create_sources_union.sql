@@ -170,7 +170,7 @@ NB. any specific translated_macro must rather be applied after calling this macr
     {% if source_model %}
         {% do cas_usage_source_table.update({ 'source_model' : source_model }) %}
     {% else %}
-        {% do log("fdr_source_union can't find relation ! " ~ cas_usage_source_table) %}
+        {% do log("fdr_source_union can't find relation ! " ~ cas_usage_source_table, info=True) %}
     {% endif %}
 
     -- get 2 confs from dict if any :
@@ -179,18 +179,21 @@ NB. any specific translated_macro must rather be applied after calling this macr
             ~ cas_usage_source_table.data_owner_dict_schema ~ '"."' ~ cas_usage_source_table.data_owner_dict_table ~ '"'
             ~ ' t where t."Valeur" is not null and t."Code" is null and t."FDR_SOURCE_NOM"='
             ~ "'" ~ cas_usage_source_table.FDR_SOURCE_NOM ~ "'") %}
+        {% do log("   data_dict_column_mapping_rows res " ~ data_dict_column_mapping_rows[0]['res'], info=True) %}
         {% if data_dict_column_mapping_rows and (data_dict_column_mapping_rows | length != 0)
-            and 'res' in data_dict_column_mapping_rows[0] %}
-            {% do cas_usage_source_table.update({ 'data_dict_column_mappings' : fromjson(data_dict_column_mapping_rows[0]['res']) }) %}
+                and data_dict_column_mapping_rows[0]['res'] %} -- else data dictionary does not apply to this FDR_SOURCE_NOM
+            {% do cas_usage_source_table.update({ 'data_dict_column_mappings' : fromjson(data_dict_column_mapping_rows[0]['res']) }) %} -- single row with single 'res' col
         {% endif %}
         {% set data_dict_code_columns_rows = run_query('select json_agg(distinct "Champs") res from "'
             ~ cas_usage_source_table.data_owner_dict_schema ~ '"."' ~ cas_usage_source_table.data_owner_dict_table ~ '"'
             ~ ' t where t."Code" is not null and t."Valeur" is not null') %}
         {# TODO ' and t."FDR_SOURCE_NOM"=' ~ "'" ~ cas_usage_source_table.FDR_SOURCE_NOM ~ "'" #}
-        {% if data_dict_code_columns_rows and data_dict_code_columns_rows | length != 0 %}
+        {% do log("   data_dict_code_columns_rows res " ~ data_dict_code_columns_rows[0]['res'], info=True) %}
+        {% if data_dict_code_columns_rows and data_dict_code_columns_rows | length != 0
+                and data_dict_code_columns_rows[0]['res'] %} -- else data dictionary does not apply to this FDR_SOURCE_NOM
             {% do cas_usage_source_table.update({ 'data_dict_code_columns' : fromjson(data_dict_code_columns_rows[0]['res']) }) %}
         {% endif %}
-        {% do log("cas_usage_source_table updated " ~ cas_usage_source_table, info=True) %}
+        {% do log("cas_usage_source_table updated because data_owner_dict_table : " ~ cas_usage_source_table, info=True) %}
     {% endif %}
 {% endfor %}
 {% do log("fdr_source_union source_models " ~ source_models, info=True) %}
