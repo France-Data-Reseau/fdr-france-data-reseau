@@ -119,7 +119,7 @@ Requis pour Superset Bar Chart des différentes valeurs prises par un champ.
 
 version with and without type-specific prefix
 
-### generic fields
+### generic computed fields
 
 - src_kind : the processing kind / type, so is (ideally would be a subset of ex. apcom_birdz) FDR_SOURCE_NOM (ex. apcom_equip_birdz)
 - src_name : makes src_id unique, so merely contains FDR_SOURCE_NOM and data_owner_id
@@ -128,6 +128,42 @@ version with and without type-specific prefix
 - src_id : the original id provided in the source
 - id : unique id across all data_owner_id and FDR_SOURCE_NOM
 - uuid : reproducible UUID that is generated from id
+
+### generic imported fields
+
+Il y en a beaucoup qui viennent de CKAN, et les autres donc de l'import même (table où une resource CKAN a été importée, état de l'import).
+Les voici pris de la définition de fdr_import_resource (produit par import.py) :
+
+	"FDR_CAS_USAGE" text NULL,
+	"FDR_ROLE" text NULL,
+	"FDR_SOURCE_NOM" text NULL,
+	"FDR_TARGET" text NULL,
+	status text NULL,
+	"start" text NULL,
+	imported text NULL,  -- date d'import de la ligne de donnée
+	component text NULL,
+	step text NULL,
+	last_changed text NULL,  -- date la plus récente entre modification de la resource CKAN et de son dataset
+	added text NULL, -- date de création du dataset
+	removed text NULL,
+	resource_id text NULL,
+	resource_name text NULL,
+	dataset_id text NULL,
+	dataset_name text NULL,
+	dataset_title text NULL,
+	org_id text NULL,
+	org_name text NULL,
+	org_title text NULL,
+	data_owner_id text NULL,
+	u_email text NULL,
+	format text NULL,
+	source_file_path text NULL,
+	"schema" text NULL,
+	"table" text NULL,
+	use_case_prefix text NULL,
+	messages text NULL,
+	import_start text NULL,
+	import_end text NULL
 
 ### Analyse du cycle de vie et stabilité des relations / incrémentatlisation
 
