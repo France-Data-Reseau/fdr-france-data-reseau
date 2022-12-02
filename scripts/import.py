@@ -423,7 +423,7 @@ def csv_to_dbt_table(source_file_path, schema, table, resource):
         if os.path.getsize(source_file_path) > PANDAS_MAX_FILE_SIZE:
             raise Exception("csv_to_dbt_table : aborting because file " + source_file_path + " bigger than max " + str(PANDAS_MAX_FILE_SIZE))
         # infer separator, and parse all fields as string see https://stackoverflow.com/questions/16988526/pandas-reading-csv-as-string-type
-        parsed_file_df = pandas.read_csv(source_file_path, sep = None, dtype=str)
+        parsed_file_df = pandas.read_csv(source_file_path, sep = None, dtype=str, encoding='utf-8-sig') # else first column is not mapped because https://stackoverflow.com/questions/17912307/u-ufeff-in-python-string
         # sheet_name, true/false_values, na_values/filter, dates, decimal : '.'...
         #write_to_source(parsed_file_df, 's', 'r', mode='overwrite') # also avoids changing schema pb with mode='append' https://docs.fal.ai/Reference/variables-and-functions
         write_table(parsed_file_df, table, schema, model_for_connection, adapter)
