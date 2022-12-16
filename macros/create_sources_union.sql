@@ -226,10 +226,10 @@ NB. any specific translated_macro must rather be applied after calling this macr
     )
     -- select '"{{ context_model.database }}"."{{ cas_usage_source_tables.schema }}"."{{ cas_usage_source_table.source_model }}"'::text as src_relation, lenient_parsed.* from lenient_parsed
     select '{{ source_model }}'::text as import_table, lenient_parsed.*,
-        to_timestamp(s.last_changed, 'YYYY-MM-DDTHH24:MI:SS') as last_changed,
-        to_timestamp(s.added, 'YYYY-MM-DDTHH24:MI:SS') as added,
-        to_timestamp(s.removed, 'YYYY-MM-DDTHH24:MI:SS') as removed,
-        to_timestamp(s.imported, 'YYYY-MM-DDTHH24:MI:SS') as imported,
+        to_timestamp(s.last_changed, 'YYYY-MM-DD"T"HH24:MI:SS') as last_changed,
+        to_timestamp(s.added, 'YYYY-MM-DD"T"HH24:MI:SS') as added,
+        to_timestamp(s.removed, 'YYYY-MM-DD"T"HH24:MI:SS') as removed,
+        to_timestamp(s.imported, 'YYYY-MM-DD"T"HH24:MI:SS') as imported,
         s."data_owner_id", s.org_name as data_owner_label, -- TODO org_title
         s."FDR_CAS_USAGE", s."FDR_ROLE", s."FDR_SOURCE_NOM", s."FDR_TARGET"
     from lenient_parsed

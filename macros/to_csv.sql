@@ -29,7 +29,7 @@ select
           array_to_json({{ source }}.{{ adapter.quote(col.name) }})
         {% elif col.is_string() or col.is_number() %}
           {{ source }}.{{ adapter.quote(col.name) }}
-        -- elif date : ::text transforms date to rfc3339 by default i.e. 'YYYY-MM-DDTHH24:mi:ss.SSS' as required by apcom & eaupot
+        -- elif date : ::text transforms date to rfc3339 by default i.e. 'YYYY-MM-DD"T"HH24:mi:ss.SSS' as required by apcom & eaupot
         -- NB. date has to be transformed to text in SQL (and types gotten from the source model), else dbt adapter raises ValueError: year 20222 is out of range,
         -- because of fromtimestamp explodes beyond 10000 and returns at least 1970 which is not an acceptable minimum https://docs.python.org/3/library/datetime.html#datetime.datetime.fromtimestamp
         {% else %}

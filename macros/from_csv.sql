@@ -40,7 +40,7 @@ if none, source is used as single column_models (same as defined_columns_only=fa
 not conflict)
 - complete_columns_with_null
 - wkt_rather_than_geojson
-- date_formats : in the order of parsing preference, by default : 'YYYY-MM-DDTHH24:mi:ss.SSS' (RFC3339), 'YYYY/MM/DD HH24:mi:ss.SSS', 'DD/MM/YYYY HH24:mi:ss.SSS'
+- date_formats : in the order of parsing preference, by default : 'YYYY-MM-DD"T"HH24:mi:ss.SSS' (RFC3339), 'YYYY/MM/DD HH24:mi:ss.SSS', 'DD/MM/YYYY HH24:mi:ss.SSS'
 - geo_pattern
 - best_geometry_columns : allows to prioritize which column in source is better to be mapped to the single column
 typed as geometry in def models  (so also allows to rename / map it)
@@ -56,7 +56,7 @@ a lot of formats ex. geopackage, Shapefile don't have a name for it, so its name
 
 
 {% macro from_csv(source, column_models=[], defined_columns_only=false, complete_columns_with_null=false,
-    date_formats=['YYYY-MM-DDTHH24:mi:ss.SSS', 'YYYY/MM/DD HH24:mi:ss.SSS', 'DD/MM/YYYY HH24:mi:ss.SSS'],
+    date_formats=['YYYY-MM-DD"T"HH24:mi:ss.SSS', 'YYYY/MM/DD HH24:mi:ss.SSS', 'DD/MM/YYYY HH24:mi:ss.SSS'],
     geo_pattern=".*geo.*", wkt_rather_than_geojson=false, best_geometry_columns=['geom', 'Geom', 'geometrie'],
     target_geometry_column_name='geometry', srid='2154', fdr_src_perimetre_all_parsed_exists=false,
     uuid_pattern="_Id|_Ref", def_from_source_mapping={},
