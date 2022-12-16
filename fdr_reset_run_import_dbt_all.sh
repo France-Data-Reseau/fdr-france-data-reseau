@@ -1,4 +1,5 @@
 #!/bin/bash
+. ../../dbt-env/bin/activate
 cd ../fdr-france-data-reseau
 # NOT doing it because it can take a very long time !!!
 #rm -rf import_state.json
